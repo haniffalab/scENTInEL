@@ -259,7 +259,7 @@ def model_class_feature_plots(top_loadings, classes, comps, p_lim, max_len,title
         med = np.median(df_loadings[comps])
         plt.axvline(x=med,color='blue')
         plt.xlabel('feature_importance', fontsize=12)
-        plt.title(title)
+        plt.title(title+'_'+class_temp)
         #plt.axvline(x=med,color='pinkp_lim
         df_loadings[comps][df_loadings[str(p_lim) +'_pval']<0.05]
         print(len(df_loadings[comps][df_loadings[str(p_lim) +'_pval']<0.05]))
