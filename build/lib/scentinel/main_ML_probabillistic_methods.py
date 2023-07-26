@@ -109,7 +109,7 @@ from scipy.stats import entropy
 # main_probabillistic_training_projection_modules
     
 # projection module
-def reference_projection(adata, model, dyn_std,partial_scale):
+def reference_projection(adata, model, dyn_std,partial_scale,train_x_partition):
     """
     General description.
 
