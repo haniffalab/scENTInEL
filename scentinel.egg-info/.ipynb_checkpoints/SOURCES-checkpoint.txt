@@ -1,0 +1,9 @@
+LICENSE
+README.md
+pyproject.toml
+setup.py
+scentinel.egg-info/PKG-INFO
+scentinel.egg-info/SOURCES.txt
+scentinel.egg-info/dependency_links.txt
+scentinel.egg-info/requires.txt
+scentinel.egg-info/top_level.txt
