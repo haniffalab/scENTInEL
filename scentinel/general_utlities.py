@@ -106,6 +106,7 @@ import pandas as pd
 import pymc3 as pm
 from scipy.sparse import csr_matrix
 from scipy.stats import entropy
+from sklearn.preprocessing import LabelEncoder
 # Utils
 
 # resource usage logger
@@ -155,7 +156,7 @@ class DisplayCPU(threading.Thread):
         return current, peak
 
 # Frequency redistribution mode for assigning classes by categorical detected communities
-def freq_redist_68CI(adata,clusters_reassign):
+def freq_redist_68CI(pred_out,clusters_reassign):
     """
     General description.
 
@@ -164,11 +165,12 @@ def freq_redist_68CI(adata,clusters_reassign):
     Returns:
 
     """
+    freq_redist = clusters_reassign
     if freq_redist != False:
         print('Frequency redistribution commencing')
         cluster_prediction = "consensus_clus_prediction"
         lr_predicted_col = 'predicted'
-        pred_out[clusters_reassign] = adata.obs[clusters_reassign].astype(str)
+#         pred_out[clusters_reassign] = adata.obs[clusters_reassign].astype(str)
         reassign_classes = list(pred_out[clusters_reassign].unique())
         lm = 1 # lambda value
         pred_out[cluster_prediction] = pred_out[clusters_reassign]
@@ -199,43 +201,36 @@ def freq_redist_68CI(adata,clusters_reassign):
     
 # Module to produce report for projection accuracy metrics on tranductive runs     
 def report_f1(model,train_x, train_label):
-    """
-    General description.
-
-    Parameters:
-
-    Returns:
-
-    """
     ## Report accuracy score
-    
-    # cv = RepeatedStratifiedKFold(n_splits=2, n_repeats=2, random_state=1)
-    # # evaluate the model and collect the scores
-    # n_scores = cross_val_score(lr, train_x, train_label, scoring='accuracy', cv=cv, n_jobs=-1)
-    # # report the model performance
-    # print('Mean Accuracy: %.3f (%.3f)' % (np.mean(n_scores), np.std(n_scores)))
-
+    # ...
     # Report Precision score
-    metric = pd.DataFrame((metrics.classification_report(train_label, model.predict(train_x), digits=2,output_dict=True))).T
-    cm = confusion_matrix(train_label, model.predict(train_x))
-    #cm = confusion_matrix(train_label, model.predict_proba(train_x))
-    df_cm = pd.DataFrame(cm, index = model.classes_,columns = model.classes_)
+    predicted_labels = model.predict(train_x)
+    unique_labels = np.unique(np.concatenate((train_label, predicted_labels)))
+    metric = pd.DataFrame(classification_report(train_label, predicted_labels, digits=2,output_dict=True)).T
+    cm = confusion_matrix(train_label, predicted_labels, labels=unique_labels)
+    df_cm = pd.DataFrame(cm, index = unique_labels, columns = unique_labels)
     df_cm = (df_cm / df_cm.sum(axis=0))*100
     plt.figure(figsize = (20,15))
-    sn.set(font_scale=1) # for label size
-    pal = sns.diverging_palette(240, 10, n=10)
-    #plt.suptitle(('Mean Accuracy 5 fold: %.3f std: %.3f' % (np.mean(n_scores),  np.std(n_scores))), y=1.05, fontsize=18)
+    sns.set(font_scale=1) # for label size
+    pal = sn.diverging_palette(240, 10, n=10)
     #Plot precision recall and recall
-    table = plt.table(cellText=metric.values,colWidths = [1]*len(metric.columns),
-    rowLabels=metric.index,
-    colLabels=metric.columns,
-    cellLoc = 'center', rowLoc = 'center',
-    loc='bottom', bbox=[0.25, -0.6, 0.5, 0.3])
-    table.scale(1, 2)
+    num_rows = len(metric.index)
+    scale_factor = num_rows * 0.1  # scale factor depends on the number of rows
+    bbox_y = -0.4 - num_rows * 0.05  # vertical position of the bbox depends on the number of rows
+    bbox_height = num_rows * 0.05  # height of the bbox depends on the number of rows
+
+    table = plt.table(cellText=metric.values, colWidths=[1]*len(metric.columns),
+                      rowLabels=metric.index,
+                      colLabels=metric.columns,
+                      cellLoc='center', rowLoc='center',
+                      loc='bottom', bbox=[0.25, bbox_y, 0.5, bbox_height])
+    table.scale(1, scale_factor)  # scale the table
     table.set_fontsize(10)
 
-    sn.heatmap(df_cm, annot=True, annot_kws={"size": 16},cmap=pal) # font size
-    print(metrics.classification_report(train_label, model.predict(train_x), digits=2))
+
+    sns.heatmap(df_cm, annot=True, annot_kws={"size": 16},cmap=pal) # font size
+    print(classification_report(train_label, predicted_labels, digits=2))
+
 
 def compute_label_log_losses(df, true_label, pred_columns):
     """
@@ -256,7 +251,14 @@ def compute_label_log_losses(df, true_label, pred_columns):
     """
     log_losses = {}
     y_true = (pd.get_dummies(df[true_label]))
-    y_pred = df[pred_col]
+    y_pred = df[pred_columns]
+    
+    # Get all unique classes from the true labels
+    unique_classes = np.sort(df[true_label].unique())
+    # Convert categorical true labels to one-hot encoding
+    y_true = pd.get_dummies(df[true_label], columns=unique_classes)
+    # Make sure y_pred has columns for all classes in y_true, fill missing with zeros
+    y_pred = df[pred_columns].reindex(columns=unique_classes, fill_value=0)
     loss = log_loss(np.array(y_true), np.array(y_pred))
     for label in range(y_true.shape[1]):
         log_loss_label = log_loss(np.array(y_true)[:, label], np.array(y_pred)[:, label])
@@ -276,8 +278,9 @@ def regression_results(df, true_label, pred_label, pred_columns):
 
     """
     # Regression metrics
-    y_true = df[true_label]
-    y_pred = df[pred_label]
+    le = LabelEncoder()
+    y_true = le.fit_transform(df[true_label])
+    y_pred = le.transform(df[pred_label])
     loss, log_losses, weights = compute_label_log_losses(df, true_label, pred_columns)
     mean_absolute_error=metrics.mean_absolute_error(y_true, y_pred) 
     mse=metrics.mean_squared_error(y_true, y_pred) 
@@ -292,7 +295,6 @@ def regression_results(df, true_label, pred_label, pred_columns):
     print('label Cross entropy loss: ')
     print(log_losses)  
     return loss, log_losses, weights
-
 
 # ENSDB-HGNC Option 1 
 #from gseapy.parser import Biomart

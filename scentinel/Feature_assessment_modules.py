@@ -107,6 +107,7 @@ import pymc3 as pm
 from scipy.sparse import csr_matrix
 from scipy.stats import entropy
 #Feature_assessment_modules
+import warnings
 
 def long_format_features(top_loadings):
     """
@@ -169,7 +170,8 @@ def model_feature_sf(long_format_feature_importance, coef_use):
         # Survival function scaled by 1.4826 of MAD (approx norm)
         pvals = scipy.stats.norm.sf(df_loadings[comps], loc=med, scale=1.4826*mad) # 95% CI of MAD <10,000 samples
         #pvals = scipy.stats.norm.sf(df_loadings[comps], loc=U, scale=1*std)
-        df_loadings[str(comps) +'_pval'] = pvals
+        #df_loadings[str(comps) + '_pval'] = pvals
+        df_loadings.loc[:, str(comps) + '_pval'] = pvals
         long_format_feature_importance.loc[long_format_feature_importance.index.isin(df_loadings.index)] = df_loadings
     long_format_feature_importance['is_significant_sf'] = False
     long_format_feature_importance.loc[long_format_feature_importance[coef_use+ '_pval']<0.05,'is_significant_sf'] = True
@@ -195,39 +197,41 @@ class estimate_important_features: # This calculates feature effect sizes of the
 
         """
         print('Estimating feature importance')
-        classes =  list(model.classes_)
-         # get feature names
-        try:
-            model_features = list(itertools.chain(*list(model.features)))
-        except:
-            warnings.warn('no features recorded in data, naming features by position')
-            print('if low-dim lr was submitted, run linear decoding function to obtain true feature set')
-            model_features = list(range(0,model.coef_.shape[1]))
-            model.features = model_features
-        print('Calculating the Euler number to the power of coefficients')
-        impt_ = pow(math.e,model.coef_)
-        try:
-            self.euler_pow_mat = pd.DataFrame(impt_,columns = list(itertools.chain(*list(model.features))),index = list(model.classes_))
-        except:
-            self.euler_pow_mat = pd.DataFrame(impt_,columns = list(model.features),index = list(model.classes_))
-        self.top_n_features = pd.DataFrame(index = list(range(0,top_n)))
-        # estimate per class feature importance
-        
-        print('Estimating feature importance for each class')
-        mat = self.euler_pow_mat
-        for class_pred_pos in list(range(0,len(mat.T.columns))):
-            class_pred = list(mat.T.columns)[class_pred_pos]
-            #     print(class_pred)
-            temp_mat =  pd.DataFrame(mat.T[class_pred])
-            temp_mat['coef'] = model.coef_[class_pred_pos]
-            temp_mat = temp_mat.sort_values(by = [class_pred], ascending=False)
-            temp_mat = temp_mat.reset_index()
-            temp_mat.columns = ['feature','e^coef','coef']
-            temp_mat = temp_mat[['feature','e^coef','coef']]
-            temp_mat.columns =str(class_pred)+ "_" + temp_mat.columns
-            self.top_n_features = pd.concat([self.top_n_features,temp_mat.head(top_n)], join="inner",ignore_index = False, axis=1)
-            self.to_n_features_long = model_feature_sf(long_format_features(self.top_n_features),'e^coef')
-            
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            classes =  list(model.classes_)
+             # get feature names
+            try:
+                model_features = list(itertools.chain(*list(model.features)))
+            except:
+                warnings.warn('no features recorded in data, naming features by position')
+                print('if low-dim lr was submitted, run linear decoding function to obtain true feature set')
+                model_features = list(range(0,model.coef_.shape[1]))
+                model.features = model_features
+            print('Calculating the Euler number to the power of coefficients')
+            impt_ = pow(math.e,model.coef_)
+            try:
+                self.euler_pow_mat = pd.DataFrame(impt_,columns = list(itertools.chain(*list(model.features))),index = list(model.classes_))
+            except:
+                self.euler_pow_mat = pd.DataFrame(impt_,columns = list(model.features),index = list(model.classes_))
+            self.top_n_features = pd.DataFrame(index = list(range(0,top_n)))
+            # estimate per class feature importance
+
+            print('Estimating feature importance for each class')
+            mat = self.euler_pow_mat
+            for class_pred_pos in list(range(0,len(mat.T.columns))):
+                class_pred = list(mat.T.columns)[class_pred_pos]
+                #     print(class_pred)
+                temp_mat =  pd.DataFrame(mat.T[class_pred])
+                temp_mat['coef'] = model.coef_[class_pred_pos]
+                temp_mat = temp_mat.sort_values(by = [class_pred], ascending=False)
+                temp_mat = temp_mat.reset_index()
+                temp_mat.columns = ['feature','e^coef','coef']
+                temp_mat = temp_mat[['feature','e^coef','coef']]
+                temp_mat.columns =str(class_pred)+ "_" + temp_mat.columns
+                self.top_n_features = pd.concat([self.top_n_features,temp_mat.head(top_n)], join="inner",ignore_index = False, axis=1)
+                self.to_n_features_long = model_feature_sf(long_format_features(self.top_n_features),'e^coef')
+
     
     # plot class-wise features
 def model_class_feature_plots(top_loadings, classes, comps, p_lim, max_len,title):
@@ -255,7 +259,7 @@ def model_class_feature_plots(top_loadings, classes, comps, p_lim, max_len,title
         med = np.median(df_loadings[comps])
         plt.axvline(x=med,color='blue')
         plt.xlabel('feature_importance', fontsize=12)
-        plt.title(title)
+        plt.title(title+'_'+class_temp)
         #plt.axvline(x=med,color='pinkp_lim
         df_loadings[comps][df_loadings[str(p_lim) +'_pval']<0.05]
         print(len(df_loadings[comps][df_loadings[str(p_lim) +'_pval']<0.05]))

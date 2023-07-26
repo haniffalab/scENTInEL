@@ -118,7 +118,7 @@ def plot_label_probability_heatmap(pred_out):
     """
     model_mean_probs = pred_out.loc[:, pred_out.columns != 'predicted'].groupby('orig_labels').median()
     model_mean_probs = model_mean_probs * 100
-    model_mean_probs = model_mean_probs.dropna(axis=0, how='any', thresh=None, subset=None, inplace=False)
+    model_mean_probs = model_mean_probs.dropna(axis=0, how='any', subset=None, inplace=False)
     crs_tbl = model_mean_probs.copy()
 
     # Sort dataframe columns by rows

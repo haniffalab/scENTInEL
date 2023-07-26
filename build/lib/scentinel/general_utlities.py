@@ -155,7 +155,7 @@ class DisplayCPU(threading.Thread):
         return current, peak
 
 # Frequency redistribution mode for assigning classes by categorical detected communities
-def freq_redist_68CI(adata,clusters_reassign):
+def freq_redist_68CI(pred_out,clusters_reassign):
     """
     General description.
 
@@ -164,11 +164,12 @@ def freq_redist_68CI(adata,clusters_reassign):
     Returns:
 
     """
+    freq_redist = clusters_reassign
     if freq_redist != False:
         print('Frequency redistribution commencing')
         cluster_prediction = "consensus_clus_prediction"
         lr_predicted_col = 'predicted'
-        pred_out[clusters_reassign] = adata.obs[clusters_reassign].astype(str)
+#         pred_out[clusters_reassign] = adata.obs[clusters_reassign].astype(str)
         reassign_classes = list(pred_out[clusters_reassign].unique())
         lm = 1 # lambda value
         pred_out[cluster_prediction] = pred_out[clusters_reassign]
