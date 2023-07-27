@@ -17,5 +17,6 @@ setup(
     "mygene==3.2.2",
     "gseapy==1.0.5",
     "pymc3",
+    "scikit-optimize"
     ],
 )

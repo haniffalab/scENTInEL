@@ -209,7 +209,7 @@ def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max
     """
     if tune_hyper_params == True:
         train_labels=train_label
-        results = tune_lr_model(adata, train_x_partition = train_x, random_state = 42,  train_labels = train_labels, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid)
+        results = tune_lr_model(adata, train_x_partition = train_x, random_state = 42,  train_labels = train_labels, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid,**kwargs)
         print('hyper_params tuned')
         sparcity = results.best_params_['C']
         l1_ratio = results.best_params_['l1_ratio']
@@ -253,7 +253,6 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
     Returns:
 
     """
-    import bless as bless
     from sklearn.gaussian_process.kernels import RBF
     from numpy import arange
     from sklearn.model_selection import RepeatedKFold
@@ -263,11 +262,13 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
     from sklearn.metrics import f1_score
     from sklearn.model_selection import GridSearchCV
     from skopt import BayesSearchCV
+    import scentinel as scent
 
     # If latent rep is provided, randomly sample data in spatially aware manner for initialisation
     r = np.random.RandomState(random_state)
     if train_x_partition in adata.obsm.keys():
-        lvg = bless.bless(tune_train_x, RBF(length_scale=20), lam_final = 2, qbar = 2, random_state = r, H = 10, force_cpu=True)
+        tune_train_x = adata.obsm[train_x_partition]
+        lvg = scent.bless(tune_train_x, RBF(length_scale=20), lam_final = 2, qbar = 2, random_state = r, H = 10, force_cpu=True)
     #     try:
     #         import cupy
     #         lvg_2 = bless(adata.obsm[train_x_partition], RBF(length_scale=10), 10, 10, r, 10, force_cpu=False)
@@ -369,7 +370,7 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
         adata_temp.X = scaler.transform(adata_temp.X)
 #     else:
 #         sc.pp.scale(adata_temp, zero_center=True, max_value=None, copy=False, layer=None, obsm=None)
-    if (train_x_partition != 'X') & (train_x_partition in adata_temp.obsm.keys()):
+    if (train_x_partition != 'X') & (train_x_partition not in adata_temp.obsm.keys()):
         print('train partition is not in OBSM, defaulting to PCA')
         print('performing highly variable gene selection')
         sc.pp.highly_variable_genes(adata_temp, batch_key = batch_key, subset=False)
@@ -411,7 +412,7 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
 #    train_x = adata_temp.X
     #train_label = adata_temp.obs[feat_use]
     print('proceeding to train model')
-    model = LR_train(adata_temp, train_x = train_x_partition, train_label=feat_use, penalty=penalty, sparcity=sparcity,max_iter=max_iter,l1_ratio = l1_ratio,tune_hyper_params = tune_hyper_params)
+    model = LR_train(adata_temp, train_x = train_x_partition, train_label=feat_use, penalty=penalty, sparcity=sparcity,max_iter=max_iter,l1_ratio = l1_ratio,tune_hyper_params = tune_hyper_params,**kwargs)
     model.features = list(adata_temp.var.index)
     return model
 
@@ -557,14 +558,13 @@ def compute_weights(adata, use_rep, original_labels_col, predicted_labels_col):
             sd = pm.HalfNormal('sd', sd=dist_entropy_product_orig[orig_pos.values].std())
             #observations
             obs = pm.Normal('obs', mu=mu, sd=sd, observed=dist_entropy_product_orig[pred_pos.values])
-            
-            if len(orig_pos) > 10000:
-                samp_rate = 0.1
-                smp = int(len(orig_pos)*samp_rate)
-                tne = smp = int(len(orig_pos)*samp_rate)/2
-                trace = pm.sample(smp, tune=tne)
-            else:
-                trace = pm.sample(1000, tune=500)
+#             if len(orig_pos) > 10000:
+#                 samp_rate = 0.1
+#                 smp = int(len(orig_pos)*samp_rate)
+#                 tne = int(len(orig_pos)*samp_rate)/2
+#                 trace = pm.sample(smp, tune=tne)
+#             else:
+            trace = pm.sample(1000, tune=500)
         # Compute R-hat for this label
         rhat = pm.rhat(trace)
         rhat_values[label] = {var: rhat[var].data for var in rhat.variables}

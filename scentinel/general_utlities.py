@@ -297,7 +297,7 @@ def regression_results(df, true_label, pred_label, pred_columns):
     print(log_losses)  
     return loss, log_losses, weights
 
-def empirical_bayes_balanced_stratified_KNN_sampling(adata, use_var, knn_key, sampling_rate=0.1, iterations=1, equal_allocation=False, replace = True, **kwargs):
+def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1, equal_allocation=False, replace = True, **kwargs):
     if equal_allocation:
         print('You are using an equal allocation mode of sampling, be warned that this can cause errors if the smaller populations are insufficient in number, consider replace == True')
 
@@ -305,7 +305,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, use_var, knn_key, sa
         print('You are using sampling with replacement, this allows the model to create clones of cells')
 
     # Convert string labels to integer labels
-    unique_labels, indices = np.unique(adata.obs[use_var], return_inverse=True)
+    unique_labels, indices = np.unique(adata.obs[feat_use], return_inverse=True)
     adata.obs['int.labels'] = indices
 
     # Calculate frequencies (prior probabilities)
