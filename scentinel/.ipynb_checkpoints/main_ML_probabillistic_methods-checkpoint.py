@@ -109,7 +109,7 @@ from scipy.stats import entropy
 # main_probabillistic_training_projection_modules
     
 # projection module
-def reference_projection(adata, model, dyn_std,partial_scale,train_x_partition):
+def reference_projection(adata,model,partial_scale=False,train_x_partition='X', **kwargs):
     """
     General description.
 
@@ -198,7 +198,7 @@ def reference_projection(adata, model, dyn_std,partial_scale,train_x_partition):
     return(pred_out,train_x,model_lr,adata_temp)
 
 # Modified LR train module, does not work with low-dim by default anymore, please use low-dim adapter
-def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max_iter=200,l1_ratio =0.2,tune_hyper_params =False,n_splits=5, n_repeats=3,l1_grid = [0.01,0.2,0.5,0.8], c_grid = [0.01,0.2,0.4,0.6], thread_num = -1):
+def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max_iter=200,l1_ratio =0.2,tune_hyper_params =False,n_splits=5, n_repeats=3,l1_grid = [0.01,0.2,0.5,0.8], c_grid = [0.01,0.2,0.4,0.6], thread_num = -1, **kwargs):
     """
     General description.
 
@@ -244,7 +244,7 @@ def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max
     model.features = np.array(adata.var.index)
     return model
 
-def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, train_labels = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6],thread_num = -1):
+def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, train_labels = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6],thread_num = -1, **kwargs):
     """
     General description.
 
@@ -339,12 +339,12 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
 
     """
     model_name = model_key + '_lr_model'
-    print('performing highly variable gene selection')
-    sc.pp.highly_variable_genes(adata_temp, batch_key = batch_key, subset=False)
-    adata_temp = subset_top_hvgs(adata_temp,var_length)
     #scale the input data
     if partial_scale == True:
         print('scaling input data, default option is to use incremental learning and fit in mini bulks!')
+        print('performing highly variable gene selection')
+        sc.pp.highly_variable_genes(adata_temp, batch_key = batch_key, subset=False)
+        adata_temp = subset_top_hvgs(adata_temp,var_length)
         # Partial scaling alg
         #adata_temp.X = (adata_temp.X)
         scaler = StandardScaler(with_mean=False)
@@ -371,6 +371,9 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
 #         sc.pp.scale(adata_temp, zero_center=True, max_value=None, copy=False, layer=None, obsm=None)
     if (train_x_partition != 'X') & (train_x_partition in adata_temp.obsm.keys()):
         print('train partition is not in OBSM, defaulting to PCA')
+        print('performing highly variable gene selection')
+        sc.pp.highly_variable_genes(adata_temp, batch_key = batch_key, subset=False)
+        adata_temp = subset_top_hvgs(adata_temp,var_length)
         # Now compute PCA
         sc.pp.pca(adata_temp, n_comps=100, use_highly_variable=True, svd_solver='arpack')
         sc.pl.pca_variance_ratio(adata_temp, log=True,n_pcs=100)
@@ -412,7 +415,7 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
     model.features = list(adata_temp.var.index)
     return model
 
-def compute_weighted_impact(varm_file, top_loadings, threshold=0.05):
+def compute_weighted_impact(varm_file, top_loadings, threshold=0.05, **kwargs):
     """
     General description.
     Computes the weighted impact of the features of a low-dimensional model.
@@ -554,14 +557,13 @@ def compute_weights(adata, use_rep, original_labels_col, predicted_labels_col):
             sd = pm.HalfNormal('sd', sd=dist_entropy_product_orig[orig_pos.values].std())
             #observations
             obs = pm.Normal('obs', mu=mu, sd=sd, observed=dist_entropy_product_orig[pred_pos.values])
-            
-            if len(orig_pos) > 10000:
-                samp_rate = 0.1
-                smp = int(len(orig_pos)*samp_rate)
-                tne = smp = int(len(orig_pos)*samp_rate)/2
-                trace = pm.sample(smp, tune=tne)
-            else:
-                trace = pm.sample(1000, tune=500)
+#             if len(orig_pos) > 10000:
+#                 samp_rate = 0.1
+#                 smp = int(len(orig_pos)*samp_rate)
+#                 tne = int(len(orig_pos)*samp_rate)/2
+#                 trace = pm.sample(smp, tune=tne)
+#             else:
+            trace = pm.sample(1000, tune=500)
         # Compute R-hat for this label
         rhat = pm.rhat(trace)
         rhat_values[label] = {var: rhat[var].data for var in rhat.variables}

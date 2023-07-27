@@ -109,7 +109,7 @@ from scipy.stats import entropy
 # main_probabillistic_training_projection_modules
     
 # projection module
-def reference_projection(adata, model, dyn_std,partial_scale,train_x_partition):
+def reference_projection(adata,model,partial_scale=False,train_x_partition='X', **kwargs):
     """
     General description.
 
@@ -198,7 +198,7 @@ def reference_projection(adata, model, dyn_std,partial_scale,train_x_partition):
     return(pred_out,train_x,model_lr,adata_temp)
 
 # Modified LR train module, does not work with low-dim by default anymore, please use low-dim adapter
-def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max_iter=200,l1_ratio =0.2,tune_hyper_params =False,n_splits=5, n_repeats=3,l1_grid = [0.01,0.2,0.5,0.8], c_grid = [0.01,0.2,0.4,0.6]):
+def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max_iter=200,l1_ratio =0.2,tune_hyper_params =False,n_splits=5, n_repeats=3,l1_grid = [0.01,0.2,0.5,0.8], c_grid = [0.01,0.2,0.4,0.6], thread_num = -1, **kwargs):
     """
     General description.
 
@@ -244,7 +244,7 @@ def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max
     model.features = np.array(adata.var.index)
     return model
 
-def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, train_labels = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6]):
+def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, train_labels = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6],thread_num = -1, **kwargs):
     """
     General description.
 
@@ -303,11 +303,11 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
     # define model
     cv = RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
     #model = LogisticRegression(penalty = penalty, max_iter =  200, dual=False,solver = 'saga', multi_class = 'multinomial',)
-    model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  100, n_jobs=4)
+    model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  100, n_jobs=thread_num)
     if (penalty == "l1"):
-        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  100, dual = True, solver = 'liblinear',multi_class = 'multinomial', n_jobs=4 ) # one-vs-rest
+        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  100, dual = True, solver = 'liblinear',multi_class = 'multinomial', n_jobs=thread_num ) # one-vs-rest
     if (penalty == "elasticnet"):
-        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  100, dual=False,solver = 'saga',l1_ratio=l1_ratio,multi_class = 'multinomial', n_jobs=4) # use multinomial class if probabilities are descrete
+        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  100, dual=False,solver = 'saga',l1_ratio=l1_ratio,multi_class = 'multinomial', n_jobs=thread_num) # use multinomial class if probabilities are descrete
         grid['l1_ratio'] = l1_grid
     grid['C'] = c_grid
     
@@ -316,12 +316,12 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
         search_space = {'C': (np.min(c_grid), np.max(c_grid), 'log-uniform'), 
                         'l1_ratio': (np.min(l1_grid), np.max(l1_grid), 'uniform') if 'elasticnet' in penalty else None}
         # define search
-        search = BayesSearchCV(model, search_space, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-1)
+        search = BayesSearchCV(model, search_space, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-thread_num)
         # perform the search
         results = search.fit(X, y)
     else:
         # define search
-        search = GridSearchCV(model, grid, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-1)
+        search = GridSearchCV(model, grid, scoring='neg_mean_absolute_error', cv=cv, n_jobs=thread_num)
         # perform the search
         results = search.fit(X, y)
     # summarize
@@ -329,7 +329,7 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
     print('Config: %s' % results.best_params_)
     return results
 
-def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correction=False, var_length = 7500,penalty='elasticnet',sparcity=0.2,max_iter = 200,l1_ratio = 0.1,partial_scale=True,train_x_partition ='X',theta = 3,tune_hyper_params=False ):
+def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correction=False, var_length = 7500,penalty='elasticnet',sparcity=0.2,max_iter = 200,l1_ratio = 0.1,partial_scale=True,train_x_partition ='X',theta = 3,tune_hyper_params=False,thread_num = -1, **kwargs):
     """
     General description.
 
@@ -339,12 +339,12 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
 
     """
     model_name = model_key + '_lr_model'
-    print('performing highly variable gene selection')
-    sc.pp.highly_variable_genes(adata_temp, batch_key = batch_key, subset=False)
-    adata_temp = subset_top_hvgs(adata_temp,var_length)
     #scale the input data
     if partial_scale == True:
         print('scaling input data, default option is to use incremental learning and fit in mini bulks!')
+        print('performing highly variable gene selection')
+        sc.pp.highly_variable_genes(adata_temp, batch_key = batch_key, subset=False)
+        adata_temp = subset_top_hvgs(adata_temp,var_length)
         # Partial scaling alg
         #adata_temp.X = (adata_temp.X)
         scaler = StandardScaler(with_mean=False)
@@ -371,6 +371,9 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
 #         sc.pp.scale(adata_temp, zero_center=True, max_value=None, copy=False, layer=None, obsm=None)
     if (train_x_partition != 'X') & (train_x_partition in adata_temp.obsm.keys()):
         print('train partition is not in OBSM, defaulting to PCA')
+        print('performing highly variable gene selection')
+        sc.pp.highly_variable_genes(adata_temp, batch_key = batch_key, subset=False)
+        adata_temp = subset_top_hvgs(adata_temp,var_length)
         # Now compute PCA
         sc.pp.pca(adata_temp, n_comps=100, use_highly_variable=True, svd_solver='arpack')
         sc.pl.pca_variance_ratio(adata_temp, log=True,n_pcs=100)
@@ -412,7 +415,7 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
     model.features = list(adata_temp.var.index)
     return model
 
-def compute_weighted_impact(varm_file, top_loadings, threshold=0.05):
+def compute_weighted_impact(varm_file, top_loadings, threshold=0.05, **kwargs):
     """
     General description.
     Computes the weighted impact of the features of a low-dimensional model.
