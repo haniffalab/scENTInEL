@@ -2,11 +2,15 @@
 
 ## Installation
 To install directly from github run below in command line
+
 ```pip install git+https://github.com/Issacgoh/scENTInEL.git```
 
 To clone and install:
+
 ```git clone https://github.com/Issacgoh/scENTInEL.git```
+
 ```cd ./scENTInEL```
+
 ```pip install .```
 
 ## Introduction
