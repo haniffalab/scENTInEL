@@ -528,3 +528,87 @@ def analyze_and_plot_feat_gsea(top_loadings_lowdim, class_name, max_len=20, pre_
     terms = enr.res2d.Term
     axs = enr.plot(terms=terms[1:10], legend_kws={'loc': (1.2, 0)}, show_ranking=True, figsize=(3, 4))
     plt.show()
+    
+def plot_class_distribution(adata, adata_samp, feat_use):
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    adata.obs[feat_use].value_counts().plot(kind='bar', ax=ax[0])
+    ax[0].set_title('Before Sampling')
+    adata_samp.obs[feat_use].value_counts().plot(kind='bar', ax=ax[1])
+    ax[1].set_title('After Sampling')
+    plt.show()
+
+def compute_weights(adata, feat_use, knn_key):
+    # Convert string labels to integer labels
+    unique_labels, indices = np.unique(adata.obs[feat_use], return_inverse=True)
+    adata.obs['int.labels'] = indices
+
+    neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
+
+    # Get indices for each label
+    label_indices = {label: np.where(adata.obs['int.labels'] == label)[0] for label in range(len(unique_labels))}
+
+    weights_list = []
+
+    for label in label_indices:
+        indices = label_indices[label]
+        neighborhoods = neighborhood_matrix[indices][:, indices]  # select neighborhoods for the current label
+
+        same_label_mask = np.array(adata.obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
+        same_label_mask = scipy.sparse.diags(same_label_mask)  # convert to diagonal matrix for multiplication
+
+        same_label_neighborhoods = same_label_mask @ neighborhoods @ same_label_mask  # get neighborhoods of same-label cells
+        different_label_neighborhoods = neighborhoods - same_label_neighborhoods  # get neighborhoods of different-label cells
+
+        same_label_weights = np.array(same_label_neighborhoods.sum(axis=1)).ravel()
+        different_label_weights = np.array(different_label_neighborhoods.sum(axis=1)).ravel()
+
+        # Calculate the ratio of same-label weights to different-label weights
+        # Add a small constant in the denominator to avoid division by zero
+        weights = same_label_weights / (different_label_weights + 1e-8)
+
+        weights_list.extend(weights)
+
+    return weights_list
+
+
+def compute_sampling_probabilities(adata, feat_use, knn_key):
+    # Calculate weights
+    weights = compute_weights(adata, feat_use, knn_key)
+    # Normalize weights to probabilities
+    sampling_probabilities = weights / np.sum(weights)
+    return sampling_probabilities
+
+
+def plot_sampling_metrics(adata,adata_samp, feat_use, knn_key):
+    """
+    Weight Distribution of Sampled Points vs Original Data: This histogram compares the weight distribution of your original dataset to your sampled dataset. Weights here represent the sum of connection strengths (weights) of nearest neighbors in the k-nearest neighbors graph. If the sampling strategy is working as intended, you should see that the sampled data's weight distribution is similar to the original data, indicating that the sampling has preserved the relative density of points in the feature space. Large deviations might suggest that the sampling is not preserving the structure of the data well.
+
+    Sampling Probability vs Weights of Nearest Neighbors: This scatter plot shows the relationship between the weights of nearest neighbors and the sampling probability for each point. Since the sampling probability is proportional to the weight (sum of connection strengths), you expect to see a positive correlation. The sampled data (marked in different color) should follow the same trend as the original data, suggesting that the sampling has preserved the relative importance of points based on their connection strengths.
+    """
+    # Compute weights for original and sampled data
+    adata_weights = compute_weights(adata, feat_use, knn_key=knn_key)
+    adata_samp_weights = compute_weights(adata_samp, feat_use, knn_key=knn_key)
+    plot_class_distribution(adata,adata_samp,feat_use)
+    # Weight Distribution of Sampled Points:
+    print("Weight Distribution of Sampled Points vs Original Data: This histogram compares the weight distribution of your original dataset to your sampled dataset. Weights here represent the sum of connection strengths (weights) of nearest neighbors in the k-nearest neighbors graph. If the sampling strategy is working as intended, you should see that the sampled data's weight distribution is similar to the original data, indicating that the sampling has preserved the relative density of points in the feature space. Large deviations might suggest that the sampling is not preserving the structure of the data well.")
+    plt.figure(figsize=(10, 6))
+    sns.histplot(adata_weights, color='blue', label='Original Data', kde=True)
+    sns.histplot(adata_samp_weights, color='red', label='Sampled Data', kde=True)
+    plt.title('Weight Distribution of Sampled Points vs Original Data')
+    plt.legend()
+    plt.show()
+
+    # Compute sampling probabilities for original and sampled data
+    adata_sampling_probabilities = compute_sampling_probabilities(adata, feat_use, knn_key=knn_key)
+    adata_samp_sampling_probabilities = compute_sampling_probabilities(adata_samp, feat_use, knn_key=knn_key)
+
+    # Sampling Probability and Weight Relationship:
+    print("Sampling Probability vs Weights of Nearest Neighbors: This scatter plot shows the relationship between the weights of nearest neighbors and the sampling probability for each point. Since the sampling probability is proportional to the weight (sum of connection strengths), you expect to see a positive correlation. The sampled data (marked in different color) should follow the same trend as the original data, suggesting that the sampling has preserved the relative importance of points based on their connection strengths.")
+    plt.figure(figsize=(10, 6))
+    plt.scatter(adata_weights, adata_sampling_probabilities, label='Original Data', alpha=0.5)
+    plt.scatter(adata_samp_weights, adata_samp_sampling_probabilities, label='Sampled Data', alpha=0.5)
+    plt.xlabel('Sum of Weights of Nearest Neighbors')
+    plt.ylabel('Sampling Probability')
+    plt.title('Sampling Probability vs Weights of Nearest Neighbors')
+    plt.legend()
+    plt.show()

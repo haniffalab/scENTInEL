@@ -199,7 +199,7 @@ def reference_projection(adata,model,partial_scale=False,train_x_partition='X', 
     return(pred_out,train_x,model_lr,adata_temp)
 
 # Modified LR train module, does not work with low-dim by default anymore, please use low-dim adapter
-def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max_iter=200,l1_ratio =0.2,tune_hyper_params =False,n_splits=5, n_repeats=3,l1_grid = [0.01,0.2,0.5,0.8], c_grid = [0.01,0.2,0.4,0.6], thread_num = -1,sketch = False, **kwargs):
+def LR_train(adata, train_x_partition, train_label, penalty='elasticnet', sparcity=0.2,max_iter=200,l1_ratio =0.2,tune_hyper_params =False,n_splits=5, n_repeats=3,l1_grid = [0.01,0.2,0.5,0.8], c_grid = [0.01,0.2,0.4,0.6], thread_num = -1,sketch_tune = False, **kwargs):
     """
     General description.
 
@@ -216,8 +216,8 @@ def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max
         print(kwargs)
         print(sparcity)
     if tune_hyper_params == True:
-        train_labels=train_label
-        results = tune_lr_model(adata, train_x_partition = train_x, random_state = 42, penalty=penalty, sparcity=sparcity,train_labels = train_labels, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid,**kwargs)
+#         results = tune_lr_model(adata, train_x_partition = train_x_partition, random_state = 42, penalty=penalty, sparcity=sparcity,train_label = train_label, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid,**kwargs)
+        results = tune_lr_model(random_state = 42,**kwargs)
         print('hyper_params tuned')
         sparcity = results.best_params_['C']
         l1_ratio = results.best_params_['l1_ratio']
@@ -227,7 +227,7 @@ def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max
         lr = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  max_iter, dual = True, solver = 'liblinear',multi_class = 'ovr', n_jobs=thread_num ) # one-vs-rest
     if (penalty == "elasticnet"):
         lr = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  max_iter, dual=False,solver = 'saga',l1_ratio=l1_ratio,multi_class = 'ovr', n_jobs=thread_num)
-    if train_x == 'X':
+    if train_x_partition == 'X':
         subset_train = adata.obs.index
         # Define training parameters
         train_label = adata.obs[train_label].values
@@ -235,24 +235,24 @@ def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max
 #        train_label = train_label[subset_train]
         train_x = adata.X#[adata.obs.index.isin(list(adata.obs[subset_train].index))]
 #        predict_x = adata.X[adata.obs.index.isin(list(adata.obs[subset_predict].index))]
-    elif train_x in adata.obsm.keys():
+    elif train_x_partition in adata.obsm.keys():
         # Define training parameters
         train_label = adata.obs[train_label].values
 #        predict_label = train_label[subset_predict]
 #         train_label = train_label[subset_train]
-        train_x = adata.obsm[train_x]
-#        predict_x = train_x
-#        train_x = train_x[subset_train, :]
+        train_x = adata.obsm[train_x_partition]
+#        predict_x = train_x_partition
+#        train_x_partition = train_x_partition[subset_train, :]
         # Define prediction parameters
 #        predict_x = predict_x[subset_predict]
 #        predict_x = pd.DataFrame(predict_x)
 #        predict_x.index = adata.obs[subset_predict].index
-    # Train predictive model using user defined partition labels (train_x ,train_label, predict_x)
+    # Train predictive model using user defined partition labels (train_x_partition ,train_label, predict_x)
     model = lr.fit(train_x, train_label)
     model.features = np.array(adata.var.index)
     return model
 
-def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, penalty='elasticnet', sparcity = 0.2,l1_ratio=0.5,train_labels = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6],thread_num = -1,loss= 'logloss',sketch = False, **kwargs):
+def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, penalty='elasticnet', sparcity = 0.2,l1_ratio=0.5,train_label = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6],thread_num = -1,loss= 'logloss',sketch_tune = False, **kwargs):
     """
     General description.
 
@@ -276,13 +276,11 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
         for key, value in kwargs.items():
             globals()[key] = value
         kwargs.update(locals())
-        print(kwargs)
-        print(sparcity)
     # If latent rep is provided, randomly sample data in spatially aware manner for initialisation
     r = np.random.RandomState(random_state)
     if train_x_partition in adata.obsm.keys():
         tune_train_x = adata.obsm[train_x_partition]
-        if sketch == True:
+        if sketch_tune == True:
             lvg = scent.bless(tune_train_x, RBF(length_scale=20), lam_final = 2, qbar = 2, random_state = r, H = 10, force_cpu=True)
         #     try:
         #         import cupy
@@ -304,15 +302,15 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
         adata_tuning = adata[random_vertices]
         tune_train_x = adata_tuning.X
         
-    if not train_labels == None:
-        tune_train_label = adata_tuning.obs[train_labels]
-    elif train_labels == None:
+    if not train_label == None:
+        tune_train_label = adata_tuning.obs[train_label]
+    elif train_label == None:
         try:
             print('no training labels provided, defaulting to unsuperived leiden clustering, updates will change this to voronoi greedy sampling')
             sc.tl.leiden(adata_tuning)
         except:
             print('no training labels provided, no neighbors, defaulting to unsuperived leiden clustering, updates will change this to voronoi greedy sampling')
-            sc.pp.neighbors(adata_hm, n_neighbors=15, n_pcs=50)
+            sc.pp.neighbors(adata_tuning, n_neighbors=15, n_pcs=50)
             sc.tl.leiden(adata_tuning)
         tune_train_label = adata_tuning.obs['leiden']
     ## tune regularization for multinomial logistic regression
@@ -340,17 +338,32 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
                         'l1_ratio': (np.min(l1_grid), np.max(l1_grid), 'uniform') if 'elasticnet' in penalty else None}
         # define search
         if loss == 'logloss':
-            search = BayesSearchCV(model, search_space, scoring=LogLoss, cv=cv, n_jobs=-thread_num)
+            search = BayesSearchCV(model, search_space, scoring=LogLoss, cv=cv, n_jobs=-thread_num, verbose=1)
         else:
-            search = BayesSearchCV(model, search_space, scoring=loss, cv=cv, n_jobs=-thread_num)
+            search = BayesSearchCV(model, search_space, scoring=loss, cv=cv, n_jobs=-thread_num, verbose=1)
         # perform the search
         results = search.fit(X, y)
+        # Plot Bayesian optimization iterations
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(len(results.cv_results_['mean_test_score'])), results.cv_results_['mean_test_score'])
+        plt.xlabel('Iteration')
+        plt.ylabel('Mean Cross-Entropy loss')
+        plt.title('Bayesian Optimization Iterations')
+        # Find the best iteration
+        best_iteration = np.argmax(results.cv_results_['mean_test_score'])
+        best_score = results.cv_results_['mean_test_score'][best_iteration]
+        # Mark the best iteration
+        plt.scatter(best_iteration, best_score, marker='o', color='red', label='Best Iteration C:{} gamma:{}'.format(best_params['C'],best_params['gamma']))
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+        
     else:
         # define search
         if loss == 'logloss':
-            search = GridSearchCV(model, grid, scoring=LogLoss, cv=cv, n_jobs=thread_num)
+            search = GridSearchCV(model, grid, scoring=LogLoss, cv=cv, n_jobs=thread_num, verbose=1)
         else:
-            search = GridSearchCV(model, grid, scoring=loss, cv=cv, n_jobs=thread_num)#'neg_mean_absolute_error'
+            search = GridSearchCV(model, grid, scoring=loss, cv=cv, n_jobs=thread_num, verbose=1)#'neg_mean_absolute_error'
         # perform the search
         results = search.fit(X, y)
     # summarize
@@ -358,7 +371,7 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
     print('Config: %s' % results.best_params_)
     return results
 
-def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correction=False, var_length = 7500,penalty='elasticnet',sparcity=0.2,max_iter = 500,l1_ratio = 0.1,partial_scale=True,train_x_partition ='X',theta = 3,tune_hyper_params=False,thread_num = -1,sketch = False, **kwargs):
+def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correction=False, var_length = 7500,penalty='elasticnet',sparcity=0.2,max_iter = 500,l1_ratio = 0.1,partial_scale=True,train_x_partition ='X',theta = 3,tune_hyper_params=False,thread_num = -1,sketch_tune = False, **kwargs):
     """
     General description.
 
@@ -449,7 +462,15 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
     print('proceeding to train model')
 #     # Explixitly extract arguments that also exist in tune_lr_model from kwargs
 #     LR_train_kwargs = {key: kwargs[key] for key in ['train_x_partition', 'random_state', 'use_bayes_opt', 'train_labels', 'n_splits', 'n_repeats', 'l1_grid', 'c_grid', 'thread_num'] if key in kwargs}
-    model = LR_train(adata_temp, train_x = train_x_partition, train_label=feat_use, penalty=penalty, sparcity=sparcity,max_iter=max_iter,l1_ratio = l1_ratio,tune_hyper_params = tune_hyper_params,**kwargs)
+    # update all local kwargs
+    
+#      model = LR_train(adata_temp, train_x = train_x_partition, train_label=feat_use, penalty=penalty, sparcity=sparcity,max_iter=max_iter,l1_ratio = l1_ratio,tune_hyper_params = tune_hyper_params)
+#     model.features = list(adata_temp.var.index)
+    
+    train_x = train_x_partition
+    train_label = feat_use
+    kwargs.update(locals())
+    model = LR_train(adata = adata_temp, **kwargs)
     model.features = list(adata_temp.var.index)
     return model
 
