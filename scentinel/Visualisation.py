@@ -45,7 +45,6 @@ import sys
 #from geosketch import gs
 from numpy import cov
 import scipy.cluster.hierarchy as spc
-import seaborn as sns; sns.set(color_codes=True)
 from sklearn.linear_model import LogisticRegression
 import sklearn
 from pathlib import Path
@@ -73,7 +72,6 @@ import sys
 #from geosketch import gs
 from numpy import cov
 import scipy.cluster.hierarchy as spc
-import seaborn as sns; sns.set(color_codes=True)
 from sklearn.linear_model import LogisticRegression
 import sklearn
 from pathlib import Path
@@ -96,7 +94,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn import metrics
-import seaborn as sn
+import seaborn as sns
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
@@ -530,11 +528,33 @@ def analyze_and_plot_feat_gsea(top_loadings_lowdim, class_name, max_len=20, pre_
     plt.show()
     
 def plot_class_distribution(adata, adata_samp, feat_use):
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-    adata.obs[feat_use].value_counts().plot(kind='bar', ax=ax[0])
+    # Determine the number of unique classes
+    num_classes = len(adata.obs[feat_use].unique())
+    
+    # Set the width of the plot to show up to 150 classes comfortably, adjust as needed
+    width_per_class = 0.1
+    fig_width = max(12, num_classes * width_per_class)
+    fig, ax = plt.subplots(1, 2, figsize=(fig_width, 10))
+    # If there are fewer than 150 classes, use a bar plot
+    if num_classes < 120:
+        #adata.obs[feat_use].value_counts().plot(kind='bar', ax=ax[0])#adata.obs[feat_use].value_counts().sort_index().plot(kind='bar', ax=ax[0])
+        #adata_samp.obs[feat_use].value_counts().plot(kind='bar', ax=ax[1])#adata_samp.obs[feat_use].value_counts().sort_index().plot(kind='bar', ax=ax[1])
+        sns.histplot(adata.obs[feat_use],color='blue', label='Original Data', kde=True, ax=ax[0])
+        #adata_samp.obs[feat_use].sort_index().plot(kind='hist', bins=20, ax=ax[1])
+        sns.histplot(adata_samp.obs[feat_use], color='red', label='Sampled Data', kde=True,ax=ax[1])
+    # Otherwise, use a histogram
+    else:
+        # Set number of bins
+        bins = min(50, num_classes)
+        #adata.obs[feat_use].sort_index().plot(kind='hist', bins=20, ax=ax[0])
+        sns.histplot(adata.obs[feat_use] , bins=bins,color='blue', label='Original Data', kde=True, ax=ax[0])
+        #adata_samp.obs[feat_use].sort_index().plot(kind='hist', bins=20, ax=ax[1])
+        sns.histplot(adata_samp.obs[feat_use], bins=bins, color='red', label='Sampled Data', kde=True,ax=ax[1])
     ax[0].set_title('Before Sampling')
-    adata_samp.obs[feat_use].value_counts().plot(kind='bar', ax=ax[1])
     ax[1].set_title('After Sampling')
+    plt.setp(ax[0].xaxis.get_majorticklabels(), rotation=90)
+    plt.setp(ax[1].xaxis.get_majorticklabels(), rotation=90)
+    plt.tight_layout()
     plt.show()
 
 def compute_weights(adata, feat_use, knn_key):
@@ -564,10 +584,10 @@ def compute_weights(adata, feat_use, knn_key):
 
         # Calculate the ratio of same-label weights to different-label weights
         # Add a small constant in the denominator to avoid division by zero
-        weights = same_label_weights / (different_label_weights + 1e-8)
+        weights = same_label_weights+ 1e-8 / (different_label_weights + 1e-8)
 
         weights_list.extend(weights)
-
+#     weights_list = np.array(weights_list) / np.sum(weights_list)
     return weights_list
 
 
@@ -587,20 +607,25 @@ def plot_sampling_metrics(adata,adata_samp, feat_use, knn_key):
     """
     # Compute weights for original and sampled data
     adata_weights = compute_weights(adata, feat_use, knn_key=knn_key)
+#     adata_probabilities = adata_weights / np.sum(adata_weights)
     adata_samp_weights = compute_weights(adata_samp, feat_use, knn_key=knn_key)
+#     adata_samp_probabilities = adata_samp_weights / np.sum(adata_samp_weights)
     plot_class_distribution(adata,adata_samp,feat_use)
-    # Weight Distribution of Sampled Points:
-    print("Weight Distribution of Sampled Points vs Original Data: This histogram compares the weight distribution of your original dataset to your sampled dataset. Weights here represent the sum of connection strengths (weights) of nearest neighbors in the k-nearest neighbors graph. If the sampling strategy is working as intended, you should see that the sampled data's weight distribution is similar to the original data, indicating that the sampling has preserved the relative density of points in the feature space. Large deviations might suggest that the sampling is not preserving the structure of the data well.")
-    plt.figure(figsize=(10, 6))
-    sns.histplot(adata_weights, color='blue', label='Original Data', kde=True)
-    sns.histplot(adata_samp_weights, color='red', label='Sampled Data', kde=True)
-    plt.title('Weight Distribution of Sampled Points vs Original Data')
-    plt.legend()
-    plt.show()
-
+    
     # Compute sampling probabilities for original and sampled data
     adata_sampling_probabilities = compute_sampling_probabilities(adata, feat_use, knn_key=knn_key)
     adata_samp_sampling_probabilities = compute_sampling_probabilities(adata_samp, feat_use, knn_key=knn_key)
+
+    
+    # Weight Distribution of Sampled Points:
+    print("Weight Distribution of Sampled Points vs Original Data: This histogram compares the weight distribution of your original dataset to your sampled dataset. Weights here represent the sum of connection strengths (weights) of nearest neighbors in the k-nearest neighbors graph. If the sampling strategy is working as intended, you should see that the sampled data's weight distribution is similar to the original data, indicating that the sampling has preserved the relative density of points in the feature space. Large deviations might suggest that the sampling is not preserving the structure of the data well.")
+    plt.figure(figsize=(10, 6))
+    sns.histplot(adata_sampling_probabilities, color='blue', label='Original Data', kde=True)
+    sns.histplot(adata_samp_sampling_probabilities, color='red', label='Sampled Data', kde=True)
+    plt.xscale('log')  # apply log scale
+    plt.title('Weight Distribution of Sampled Points vs Original Data')
+    plt.legend()
+    plt.show()
 
     # Sampling Probability and Weight Relationship:
     print("Sampling Probability vs Weights of Nearest Neighbors: This scatter plot shows the relationship between the weights of nearest neighbors and the sampling probability for each point. Since the sampling probability is proportional to the weight (sum of connection strengths), you expect to see a positive correlation. The sampled data (marked in different color) should follow the same trend as the original data, suggesting that the sampling has preserved the relative importance of points based on their connection strengths.")

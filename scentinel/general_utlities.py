@@ -96,7 +96,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn import metrics
-import seaborn as sn
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
@@ -108,6 +107,7 @@ from scipy.sparse import csr_matrix
 from scipy.stats import entropy
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
+import warnings
 # Utils
 
 # resource usage logger
@@ -213,7 +213,7 @@ def report_f1(model,train_x, train_label):
     df_cm = (df_cm / df_cm.sum(axis=0))*100
     plt.figure(figsize = (20,15))
     sns.set(font_scale=1) # for label size
-    pal = sn.diverging_palette(240, 10, n=10)
+    pal = sns.diverging_palette(240, 10, n=10)
     #Plot precision recall and recall
     num_rows = len(metric.index)
     scale_factor = num_rows * 0.1  # scale factor depends on the number of rows
@@ -297,12 +297,16 @@ def regression_results(df, true_label, pred_label, pred_columns):
     print(log_losses)  
     return loss, log_losses, weights
 
-def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1, equal_allocation=False, replace = True, **kwargs):
+def V0_1_empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1, equal_allocation=False, replace = True, **kwargs):
     if equal_allocation:
         print('You are using an equal allocation mode of sampling, be warned that this can cause errors if the smaller populations are insufficient in number, consider replace == True')
 
     if replace == True:
         print('You are using sampling with replacement, this allows the model to create clones of cells')
+
+    if representation_priority > 0.5:
+        print('warning: you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states')
+        warnings.warn('warning you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states')
 
     # Convert string labels to integer labels
     unique_labels, indices = np.unique(adata.obs[feat_use], return_inverse=True)
@@ -327,19 +331,13 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     total_sample_size = int(sampling_rate * adata.shape[0])
     sample_size_per_label = total_sample_size // len(unique_labels)
 
+    sampling_probabilities_over_iterations = np.zeros((iterations, len(unique_labels)))
     for _ in range(iterations):
-        # Calculate sample sizes for each label
-        if equal_allocation:
-            label_sample_sizes = {label: sample_size_per_label for label in range(len(unique_labels))}
-        else:
-            label_sample_sizes = {label: int(label_probs[label] * total_sample_size) for label in range(len(unique_labels))}
-            # Adjust sample sizes so total equals 'total_sample_size'
-            difference = total_sample_size - sum(label_sample_sizes.values())
-            label_sample_sizes[0] += difference  # adjust the first label for simplicity
-
+        print('Iteration: {}'.format(_))
         # Stratified sampling within each neighborhood for each label
-        sample_indices = []
-        for label, sample_size in label_sample_sizes.items():
+        all_weights = []
+        all_indices = []
+        for label in label_indices.keys():
             indices = label_indices[label]
             neighborhoods = neighborhood_matrix[indices][:, indices]  # select neighborhoods for the current label
 
@@ -352,18 +350,171 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
             same_label_weights = np.array(same_label_neighborhoods.sum(axis=1)).ravel()
             different_label_weights = np.array(different_label_neighborhoods.sum(axis=1)).ravel()
 
+            # we now compute a hybrid weighting scheme, where cells with more defined neigthborhood structure are prioritised. Howevever we do not want this over penalise, so we recover underrepresented cells with a inverse weighting parameter
             # Calculate the ratio of same-label weights to different-label weights
             # Add a small constant in the denominator to avoid division by zero
-            weights = same_label_weights / (different_label_weights + 1e-8)
+            weights = same_label_weights+ 1e-8 / (different_label_weights + 1e-8)
+            #update sampling probability with combination weights and observational probs, this adjusts weights by the inverse of sampling probability to increase rare sampling events
+            # representation priority 0-1, 0 is no prioritisation for rare-states, 0.9 is maximum priority
+            if representation_priority != 0:
+                weights *= 1 / (label_probs[label] + 1e-8) *  representation_priority # add a small constant to avoid division by zero
+            else:
+                weights *= 1 / (label_probs[label] + 1e-8)
+            all_weights.extend(weights)
+            all_indices.extend(indices)
 
-            weights = weights / weights.sum()  # normalization to probabilities
-            sampled_indices = np.random.choice(indices, size=sample_size, replace=replace, p=weights)
-            sample_indices.extend(sampled_indices)
+        all_weights = np.array(all_weights) / np.sum(all_weights)  # normalization to probabilities
+
+        sample_indices = np.random.choice(all_indices, size=total_sample_size, replace=replace, p=all_weights)
 
         # Update label probabilities based on the observed sample
         sample_labels = adata.obs['int.labels'][sample_indices]
         label_counts = np.bincount(sample_labels, minlength=len(unique_labels))
-        label_probs = dict(zip(range(len(unique_labels)), label_counts / label_counts.sum()))
+        label_probs = dict(zip(range(len(unique_labels)), label_counts / label_counts.sum()+1e-8))
+        # Store the sampling probabilities for this iteration
+        sampling_probabilities_over_iterations[_, :] = np.array(list(label_probs.values())) 
 
-    adata_samp = adata[sample_indices,:]
+    average_sampling_probabilities = sampling_probabilities_over_iterations.mean(axis=0)
+    updated_label_probs = dict(zip(range(len(unique_labels)), average_sampling_probabilities))
+
+    # Final stratified sampling using the last label_probs
+    label_sample_sizes = {label: int(updated_label_probs[label] * total_sample_size) for label in range(len(unique_labels))}
+    # Adjust sample sizes so total equals 'total_sample_size'
+    difference = total_sample_size - sum(label_sample_sizes.values())
+    label_sample_sizes[0] += difference  # adjust the first label for simplicity
+    if equal_allocation:
+        label_sample_sizes = {label: sample_size_per_label for label in range(len(unique_labels))}
+    final_sample_indices = []
+    for label, sample_size in label_sample_sizes.items():
+        indices = label_indices[label]
+        neighborhoods = neighborhood_matrix[indices][:, indices]  # select neighborhoods for the current label
+
+        same_label_mask = np.array(adata.obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
+        same_label_mask = scipy.sparse.diags(same_label_mask)  # convert to diagonal matrix for multiplication
+
+        same_label_neighborhoods = same_label_mask @ neighborhoods @ same_label_mask  # get neighborhoods of same-label cells
+        different_label_neighborhoods = neighborhoods - same_label_neighborhoods  # get neighborhoods of different-label cells
+
+        same_label_weights = np.array(same_label_neighborhoods.sum(axis=1)).ravel()
+        different_label_weights = np.array(different_label_neighborhoods.sum(axis=1)).ravel()
+
+        # Calculate the ratio of same-label weights to different-label weights
+        # Add a small constant in the denominator to avoid division by zero
+        weights = same_label_weights / (different_label_weights + 1e-8)
+
+        weights = weights / weights.sum()  # normalization to probabilities
+        sampled_indices = np.random.choice(indices, size=sample_size, replace=replace, p=weights)
+        final_sample_indices.extend(sampled_indices)
+    adata_samp = adata[final_sample_indices,:]
+    #     return adata_samp, final_sample_indices
     return adata_samp, sample_indices
+
+def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.5, equal_allocation=False, replace = True, **kwargs):
+
+    if equal_allocation:
+        print('You are using an equal allocation mode of sampling, be warned that this can cause errors if the smaller populations are insufficient in number, consider replace == True')
+
+    if replace == True:
+        print('You are using sampling with replacement, this allows the model to create clones of cells')
+
+    if representation_priority > 0.5:
+        print('warning: you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states')
+        warnings.warn('warning you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states')
+
+    # Convert string labels to integer labels
+    unique_labels, indices = np.unique(adata.obs[feat_use], return_inverse=True)
+    adata.obs['int.labels'] = indices
+
+    # Calculate frequencies (prior probabilities)
+    label_counts = np.bincount(indices)
+    frequencies = label_counts / label_counts.sum()
+
+    # Create a dictionary where keys are label indices and values are their frequencies (prior probabilities)
+    prior_distribution = dict(zip(range(len(unique_labels)), frequencies))
+
+    neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
+
+    # Initialize label probabilities with prior distribution
+    label_probs = prior_distribution.copy()
+
+    # Get indices for each label
+    label_indices = {label: np.where(adata.obs['int.labels'] == label)[0] for label in range(len(unique_labels))}
+
+    # Calculate total sample size and sample size per label for equal allocation
+    total_sample_size = int(sampling_rate * adata.shape[0])
+    sample_size_per_label = total_sample_size // len(unique_labels)
+
+    sampling_probabilities_over_iterations = np.zeros((iterations, len(unique_labels)))
+    for _ in range(iterations):
+        print('Iteration: {}'.format(_))
+        # Stratified sampling within each neighborhood for each label
+        all_weights = []
+        all_indices = []
+        for label in label_indices.keys():
+            indices = label_indices[label]
+            neighborhoods = neighborhood_matrix[indices][:, indices]  # select neighborhoods for the current label
+
+            same_label_mask = np.array(adata.obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
+            same_label_mask = scipy.sparse.diags(same_label_mask)  # convert to diagonal matrix for multiplication
+
+            same_label_neighborhoods = same_label_mask @ neighborhoods @ same_label_mask  # get neighborhoods of same-label cells
+            different_label_neighborhoods = neighborhoods - same_label_neighborhoods  # get neighborhoods of different-label cells
+
+            same_label_weights = np.array(same_label_neighborhoods.sum(axis=1)).ravel()
+            different_label_weights = np.array(different_label_neighborhoods.sum(axis=1)).ravel()
+
+            # we now compute a hybrid weighting scheme, where cells with more defined neigthborhood structure are prioritised. Howevever we do not want this over penalise, so we recover underrepresented cells with a inverse weighting parameter
+            # Calculate the ratio of same-label weights to different-label weights
+            # Add a small constant in the denominator to avoid division by zero
+            weights = same_label_weights+ 1e-8 / (different_label_weights + 1e-8)
+            #update sampling probability with combination weights and observational probs, this adjusts weights by the inverse of sampling probability to increase rare sampling events
+            # representation priority 0-1, 0 is no prioritisation for rare-states, 0.9 is maximum priority
+            if representation_priority != 0:
+                weights *= 1 / (label_probs[label] + 1e-8) *  representation_priority # add a small constant to avoid division by zero
+            else:
+                weights *= 1 / (label_probs[label] + 1e-8)
+            all_weights.extend(weights)
+            all_indices.extend(indices)
+
+        all_weights = np.array(all_weights) / np.sum(all_weights)  # normalization to probabilities
+
+        sample_indices = np.random.choice(all_indices, size=total_sample_size, replace=replace, p=all_weights)
+
+        # Update label probabilities based on the observed sample
+        sample_labels = adata.obs['int.labels'][sample_indices]
+        label_counts = np.bincount(sample_labels, minlength=len(unique_labels))
+        label_probs = dict(zip(range(len(unique_labels)), label_counts / label_counts.sum()+1e-8))
+        # Store the sampling probabilities for this iteration
+        sampling_probabilities_over_iterations[_, :] = np.array(list(label_probs.values())) 
+
+    average_sampling_probabilities = sampling_probabilities_over_iterations.mean(axis=0)
+    updated_label_probs = dict(zip(range(len(unique_labels)), average_sampling_probabilities))
+
+    # Final stratified sampling using the last label_probs
+    label_sample_sizes = {label: int(updated_label_probs[label] * total_sample_size) for label in range(len(unique_labels))}
+    # Adjust sample sizes so total equals 'total_sample_size'
+    difference = total_sample_size - sum(label_sample_sizes.values())
+    label_sample_sizes[0] += difference  # adjust the first label for simplicity
+    final_sample_indices = []
+    for label, sample_size in label_sample_sizes.items():
+        indices = label_indices[label]
+        neighborhoods = neighborhood_matrix[indices][:, indices]  # select neighborhoods for the current label
+
+        same_label_mask = np.array(adata.obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
+        same_label_mask = scipy.sparse.diags(same_label_mask)  # convert to diagonal matrix for multiplication
+
+        same_label_neighborhoods = same_label_mask @ neighborhoods @ same_label_mask  # get neighborhoods of same-label cells
+        different_label_neighborhoods = neighborhoods - same_label_neighborhoods  # get neighborhoods of different-label cells
+
+        same_label_weights = np.array(same_label_neighborhoods.sum(axis=1)).ravel()
+        different_label_weights = np.array(different_label_neighborhoods.sum(axis=1)).ravel()
+
+        # Calculate the ratio of same-label weights to different-label weights
+        # Add a small constant in the denominator to avoid division by zero
+        weights = same_label_weights / (different_label_weights + 1e-8)
+
+        weights = weights / weights.sum()  # normalization to probabilities
+        sampled_indices = np.random.choice(indices, size=sample_size, replace=replace, p=weights)
+        final_sample_indices.extend(sampled_indices)
+    adata_samp = adata[final_sample_indices,:]
+    return adata_samp, final_sample_indices

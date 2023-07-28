@@ -213,12 +213,12 @@ def LR_train(adata, train_x_partition, train_label, penalty='elasticnet', sparci
         for key, value in kwargs.items():
             globals()[key] = value
         kwargs.update(locals())
-        print(kwargs)
         print(sparcity)
     if tune_hyper_params == True:
 #         results = tune_lr_model(adata, train_x_partition = train_x_partition, random_state = 42, penalty=penalty, sparcity=sparcity,train_label = train_label, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid,**kwargs)
         results = tune_lr_model(random_state = 42,**kwargs)
         print('hyper_params tuned')
+        print(results.best_params_)
         sparcity = results.best_params_['C']
         l1_ratio = results.best_params_['l1_ratio']
     
@@ -367,8 +367,8 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
         # perform the search
         results = search.fit(X, y)
     # summarize
-    print('MAE: %.3f' % results.best_score_)
-    print('Config: %s' % results.best_params_)
+#     print('MAE: %.3f' % results.best_score_)
+#     print('Config: %s' % results.best_params_)
     return results
 
 def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correction=False, var_length = 7500,penalty='elasticnet',sparcity=0.2,max_iter = 500,l1_ratio = 0.1,partial_scale=True,train_x_partition ='X',theta = 3,tune_hyper_params=False,thread_num = -1,sketch_tune = False, **kwargs):
@@ -385,7 +385,6 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
         for key, value in kwargs.items():
             globals()[key] = value
         kwargs.update(locals())
-        print(kwargs)
         print(sparcity)
     model_name = model_key + '_lr_model'
     #scale the input data
