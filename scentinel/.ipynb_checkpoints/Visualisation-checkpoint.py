@@ -519,7 +519,7 @@ def analyze_and_plot_feat_gsea(top_loadings_lowdim, class_name, max_len=20, pre_
         glist = as_gene_list(top_loadings_u, "gene")
         enr = enrich_no_rank(glist, [database])
     else:
-        enr = pre_ranked_enr(top_loadings_u, ["gene", "weighted_impact"], permutation_num=1000, database=database, cutoff=cutoff, min_s=min_s)
+        enr = pre_ranked_enr(top_loadings_u, ["gene", "e^coef"], permutation_num=1000, database=database, cutoff=cutoff, min_s=min_s)
 
     # Print the enrichment score range
     print("Normalised enrichment score ranges, for continuous phenotype tests, a positive value indicates correlation with phenotype profile or top of the ranked list, negative values indicate inverse correlation with profile or correlation with the bottom of the list")

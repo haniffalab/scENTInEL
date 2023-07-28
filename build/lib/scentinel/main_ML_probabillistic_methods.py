@@ -106,6 +106,7 @@ import pandas as pd
 import pymc3 as pm
 from scipy.sparse import csr_matrix
 from scipy.stats import entropy
+from sklearn.metrics import fbeta_score, make_scorer
 # main_probabillistic_training_projection_modules
     
 # projection module
@@ -198,7 +199,7 @@ def reference_projection(adata,model,partial_scale=False,train_x_partition='X', 
     return(pred_out,train_x,model_lr,adata_temp)
 
 # Modified LR train module, does not work with low-dim by default anymore, please use low-dim adapter
-def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max_iter=200,l1_ratio =0.2,tune_hyper_params =False,n_splits=5, n_repeats=3,l1_grid = [0.01,0.2,0.5,0.8], c_grid = [0.01,0.2,0.4,0.6], thread_num = -1, **kwargs):
+def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max_iter=200,l1_ratio =0.2,tune_hyper_params =False,n_splits=5, n_repeats=3,l1_grid = [0.01,0.2,0.5,0.8], c_grid = [0.01,0.2,0.4,0.6], thread_num = -1,sketch = False, **kwargs):
     """
     General description.
 
@@ -207,9 +208,16 @@ def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max
     Returns:
 
     """
+    #unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+        print(kwargs)
+        print(sparcity)
     if tune_hyper_params == True:
         train_labels=train_label
-        results = tune_lr_model(adata, train_x_partition = train_x, random_state = 42,  train_labels = train_labels, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid,**kwargs)
+        results = tune_lr_model(adata, train_x_partition = train_x, random_state = 42, penalty=penalty, sparcity=sparcity,train_labels = train_labels, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid,**kwargs)
         print('hyper_params tuned')
         sparcity = results.best_params_['C']
         l1_ratio = results.best_params_['l1_ratio']
@@ -244,7 +252,7 @@ def LR_train(adata, train_x, train_label, penalty='elasticnet', sparcity=0.2,max
     model.features = np.array(adata.var.index)
     return model
 
-def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, train_labels = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6],thread_num = -1, **kwargs):
+def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, penalty='elasticnet', sparcity = 0.2,l1_ratio=0.5,train_labels = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6],thread_num = -1,loss= 'logloss',sketch = False, **kwargs):
     """
     General description.
 
@@ -263,19 +271,30 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
     from sklearn.model_selection import GridSearchCV
     from skopt import BayesSearchCV
     import scentinel as scent
-
+    #unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+        print(kwargs)
+        print(sparcity)
     # If latent rep is provided, randomly sample data in spatially aware manner for initialisation
     r = np.random.RandomState(random_state)
     if train_x_partition in adata.obsm.keys():
         tune_train_x = adata.obsm[train_x_partition]
-        lvg = scent.bless(tune_train_x, RBF(length_scale=20), lam_final = 2, qbar = 2, random_state = r, H = 10, force_cpu=True)
-    #     try:
-    #         import cupy
-    #         lvg_2 = bless(adata.obsm[train_x_partition], RBF(length_scale=10), 10, 10, r, 10, force_cpu=False)
-    #     except ImportError:
-    #         print("cupy not found, defaulting to numpy")
-        adata_tuning = adata[lvg.idx]
-        tune_train_x = adata_tuning.obsm[train_x_partition][:]
+        if sketch == True:
+            lvg = scent.bless(tune_train_x, RBF(length_scale=20), lam_final = 2, qbar = 2, random_state = r, H = 10, force_cpu=True)
+        #     try:
+        #         import cupy
+        #         lvg_2 = bless(adata.obsm[train_x_partition], RBF(length_scale=10), 10, 10, r, 10, force_cpu=False)
+        #     except ImportError:
+        #         print("cupy not found, defaulting to numpy")
+            adata_tuning = adata[lvg.idx]
+            tune_train_x = adata_tuning.obsm[train_x_partition][:]
+        else:
+            adata_tuning = adata
+            tune_train_x = adata_tuning.obsm[train_x_partition][:]
+            
     else:
         print('no latent representation provided, random sampling instead')
         prop = 0.1
@@ -300,29 +319,38 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
     print('starting tuning loops')
     X = tune_train_x
     y = tune_train_label
-    grid = dict()
-    # define model
-    cv = RepeatedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
     #model = LogisticRegression(penalty = penalty, max_iter =  200, dual=False,solver = 'saga', multi_class = 'multinomial',)
-    model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  100, n_jobs=thread_num)
+    model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  150, n_jobs=thread_num)
     if (penalty == "l1"):
-        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  100, dual = True, solver = 'liblinear',multi_class = 'multinomial', n_jobs=thread_num ) # one-vs-rest
+        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  150, dual = True, solver = 'liblinear',multi_class = 'multinomial', n_jobs=thread_num ) # one-vs-rest
     if (penalty == "elasticnet"):
-        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  100, dual=False,solver = 'saga',l1_ratio=l1_ratio,multi_class = 'multinomial', n_jobs=thread_num) # use multinomial class if probabilities are descrete
-        grid['l1_ratio'] = l1_grid
+        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  150, dual=False,solver = 'saga',l1_ratio=l1_ratio,multi_class = 'multinomial', n_jobs=thread_num) # use multinomial class if probabilities are descrete
+        
+    grid = dict()
+    grid['l1_ratio'] = l1_grid
     grid['C'] = c_grid
+    # define cv grid
+    cv = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
     
+    # Define loss function
+    LogLoss = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
     if use_bayes_opt == True:
         # define search space
         search_space = {'C': (np.min(c_grid), np.max(c_grid), 'log-uniform'), 
                         'l1_ratio': (np.min(l1_grid), np.max(l1_grid), 'uniform') if 'elasticnet' in penalty else None}
         # define search
-        search = BayesSearchCV(model, search_space, scoring='neg_mean_absolute_error', cv=cv, n_jobs=-thread_num)
+        if loss == 'logloss':
+            search = BayesSearchCV(model, search_space, scoring=LogLoss, cv=cv, n_jobs=-thread_num)
+        else:
+            search = BayesSearchCV(model, search_space, scoring=loss, cv=cv, n_jobs=-thread_num)
         # perform the search
         results = search.fit(X, y)
     else:
         # define search
-        search = GridSearchCV(model, grid, scoring='neg_mean_absolute_error', cv=cv, n_jobs=thread_num)
+        if loss == 'logloss':
+            search = GridSearchCV(model, grid, scoring=LogLoss, cv=cv, n_jobs=thread_num)
+        else:
+            search = GridSearchCV(model, grid, scoring=loss, cv=cv, n_jobs=thread_num)#'neg_mean_absolute_error'
         # perform the search
         results = search.fit(X, y)
     # summarize
@@ -330,7 +358,7 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
     print('Config: %s' % results.best_params_)
     return results
 
-def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correction=False, var_length = 7500,penalty='elasticnet',sparcity=0.2,max_iter = 200,l1_ratio = 0.1,partial_scale=True,train_x_partition ='X',theta = 3,tune_hyper_params=False,thread_num = -1, **kwargs):
+def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correction=False, var_length = 7500,penalty='elasticnet',sparcity=0.2,max_iter = 500,l1_ratio = 0.1,partial_scale=True,train_x_partition ='X',theta = 3,tune_hyper_params=False,thread_num = -1,sketch = False, **kwargs):
     """
     General description.
 
@@ -339,6 +367,13 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
     Returns:
 
     """
+    #unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+        print(kwargs)
+        print(sparcity)
     model_name = model_key + '_lr_model'
     #scale the input data
     if partial_scale == True:
@@ -412,6 +447,8 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
 #    train_x = adata_temp.X
     #train_label = adata_temp.obs[feat_use]
     print('proceeding to train model')
+#     # Explixitly extract arguments that also exist in tune_lr_model from kwargs
+#     LR_train_kwargs = {key: kwargs[key] for key in ['train_x_partition', 'random_state', 'use_bayes_opt', 'train_labels', 'n_splits', 'n_repeats', 'l1_grid', 'c_grid', 'thread_num'] if key in kwargs}
     model = LR_train(adata_temp, train_x = train_x_partition, train_label=feat_use, penalty=penalty, sparcity=sparcity,max_iter=max_iter,l1_ratio = l1_ratio,tune_hyper_params = tune_hyper_params,**kwargs)
     model.features = list(adata_temp.var.index)
     return model
@@ -429,6 +466,10 @@ def compute_weighted_impact(varm_file, top_loadings, threshold=0.05, **kwargs):
     Returns:
     top_loadings_lowdim (pd.DataFrame): A dataframe containing the top weighted impacts for each class.
     """
+    #unpack kwargs
+    if kwargs:
+        locals().update(kwargs)
+    kwargs.update(locals())
     # Load the variable loadings from the file
     model_varm = pd.read_csv(varm_file, index_col=0)
 
