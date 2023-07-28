@@ -2,16 +2,19 @@
 
 ## Installation
 To install directly from github run below in command line
+
 ```pip install git+https://github.com/Issacgoh/scENTInEL.git```
 
 To clone and install:
+
 ```git clone https://github.com/Issacgoh/scENTInEL.git```
+
 ```cd ./scENTInEL```
+
 ```pip install .```
 
 ## Introduction
 
-<<<<<<< HEAD
 Scentinel is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities.
 
 ## Workflow
