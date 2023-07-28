@@ -129,7 +129,7 @@ def load_models(model_dict,model_run):
         model = pkl.load(open(fpath, "rb"))
         return model
 
-def load_adatas(adatas_dict,data_merge, data_key_use,QC_normalise):
+def load_adatas(adatas_dict,data_merge, data_key_use,QC_normalise,backed = False,**kwargs):
     """
     General description.
 
@@ -138,6 +138,12 @@ def load_adatas(adatas_dict,data_merge, data_key_use,QC_normalise):
     Returns:
 
     """
+    #unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+    
     if data_merge == True:
         # Read
         gene_intersect = {} # unused here
@@ -146,7 +152,7 @@ def load_adatas(adatas_dict,data_merge, data_key_use,QC_normalise):
             if 'https' in adatas_dict[dataset]:
                 print('Loading anndata from web source')
                 adatas[dataset] = sc.read('./temp_adata.h5ad',backup_url=adatas_dict[dataset])
-            adatas[dataset] = sc.read(data[dataset])
+            adatas[dataset] = sc.read(data[dataset],backed=backed)
             adatas[dataset].var_names_make_unique()
             adatas[dataset].obs['dataset_merge'] = dataset
             adatas[dataset].obs['dataset_merge'] = dataset
@@ -158,7 +164,7 @@ def load_adatas(adatas_dict,data_merge, data_key_use,QC_normalise):
             print('Loading anndata from web source')
             adata = sc.read('./temp_adata.h5ad',backup_url=adatas_dict[data_key_use])
         else: 
-            adata = sc.read(adatas_dict[data_key_use])
+            adata = sc.read(adatas_dict[data_key_use],backed=backed)
     if QC_normalise == True:
         print('option to apply standardisation to data detected, performing basic QC filtering')
         sc.pp.filter_cells(adata, min_genes=200)

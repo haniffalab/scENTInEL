@@ -560,12 +560,13 @@ def plot_class_distribution(adata, adata_samp, feat_use):
 def compute_weights(adata, feat_use, knn_key):
     # Convert string labels to integer labels
     unique_labels, indices = np.unique(adata.obs[feat_use], return_inverse=True)
-    adata.obs['int.labels'] = indices
+    obs = adata.obs.copy()
+    obs['int.labels'] = indices
 
     neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
 
     # Get indices for each label
-    label_indices = {label: np.where(adata.obs['int.labels'] == label)[0] for label in range(len(unique_labels))}
+    label_indices = {label: np.where(obs['int.labels'] == label)[0] for label in range(len(unique_labels))}
 
     weights_list = []
 
@@ -573,7 +574,7 @@ def compute_weights(adata, feat_use, knn_key):
         indices = label_indices[label]
         neighborhoods = neighborhood_matrix[indices][:, indices]  # select neighborhoods for the current label
 
-        same_label_mask = np.array(adata.obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
+        same_label_mask = np.array(obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
         same_label_mask = scipy.sparse.diags(same_label_mask)  # convert to diagonal matrix for multiplication
 
         same_label_neighborhoods = same_label_mask @ neighborhoods @ same_label_mask  # get neighborhoods of same-label cells
