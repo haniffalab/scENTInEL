@@ -15,7 +15,6 @@ To clone and install:
 
 ## Introduction
 
-<<<<<<< HEAD
 Scentinel is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities.
 
 ## Workflow
