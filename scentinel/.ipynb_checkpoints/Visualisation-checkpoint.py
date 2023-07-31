@@ -586,6 +586,7 @@ def compute_weights(adata, feat_use, knn_key):
         # Calculate the ratio of same-label weights to different-label weights
         # Add a small constant in the denominator to avoid division by zero
         weights = same_label_weights+ 1e-8 / (different_label_weights + 1e-8)
+        weights = weights/np.sum(weights)
 
         weights_list.extend(weights)
 #     weights_list = np.array(weights_list) / np.sum(weights_list)
@@ -600,14 +601,20 @@ def compute_sampling_probabilities(adata, feat_use, knn_key):
     return sampling_probabilities
 
 
-def plot_sampling_metrics(adata,adata_samp, feat_use, knn_key):
+def plot_sampling_metrics(adata,adata_samp, feat_use, knn_key, weights=None,**kwargs):
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
     """
     Weight Distribution of Sampled Points vs Original Data: This histogram compares the weight distribution of your original dataset to your sampled dataset. Weights here represent the sum of connection strengths (weights) of nearest neighbors in the k-nearest neighbors graph. If the sampling strategy is working as intended, you should see that the sampled data's weight distribution is similar to the original data, indicating that the sampling has preserved the relative density of points in the feature space. Large deviations might suggest that the sampling is not preserving the structure of the data well.
 
     Sampling Probability vs Weights of Nearest Neighbors: This scatter plot shows the relationship between the weights of nearest neighbors and the sampling probability for each point. Since the sampling probability is proportional to the weight (sum of connection strengths), you expect to see a positive correlation. The sampled data (marked in different color) should follow the same trend as the original data, suggesting that the sampling has preserved the relative importance of points based on their connection strengths.
     """
-    # Compute weights for original and sampled data
-    adata_weights = compute_weights(adata, feat_use, knn_key=knn_key)
+    if weights == None:
+        # Compute weights for original and sampled data
+        adata_weights = compute_weights(adata, feat_use, knn_key=knn_key)
 #     adata_probabilities = adata_weights / np.sum(adata_weights)
     adata_samp_weights = compute_weights(adata_samp, feat_use, knn_key=knn_key)
 #     adata_samp_probabilities = adata_samp_weights / np.sum(adata_samp_weights)

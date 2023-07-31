@@ -1,4 +1,13 @@
 from setuptools import setup, find_packages
+import sys
+
+class NullWriter(object):
+    def write(self, arg):
+        pass
+
+nullwrite = NullWriter()
+oldstderr = sys.stderr
+sys.stderr = nullwrite  # silence stderr
 
 setup(
     name="scentinel",
@@ -20,3 +29,5 @@ setup(
     "scikit-optimize"
     ],
 )
+
+sys.stderr = oldstderr  # reset stderr
