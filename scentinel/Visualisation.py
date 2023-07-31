@@ -631,6 +631,7 @@ def plot_sampling_metrics(adata,adata_samp, feat_use, knn_key, weights=None,**kw
     sns.histplot(adata_sampling_probabilities, color='blue', label='Original Data', kde=True)
     sns.histplot(adata_samp_sampling_probabilities, color='red', label='Sampled Data', kde=True)
     plt.xscale('log')  # apply log scale
+    plt.yscale('log')
     plt.title('Weight Distribution of Sampled Points vs Original Data')
     plt.legend()
     plt.show()

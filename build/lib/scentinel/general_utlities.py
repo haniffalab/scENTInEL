@@ -541,7 +541,7 @@ def V0_2_empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_k
 
 
 
-def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.2, equal_allocation=False, replace = True,weight_penalty='connectivity_ratio', **kwargs):
+def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='connectivity_ratio', **kwargs):
     # Unpack kwargs
     if kwargs:
         for key, value in kwargs.items():
@@ -555,7 +555,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     if replace == True:
         print('You are using sampling with replacement, this allows the model to create clones of cells')
 
-    if representation_priority > 0.5:
+    if representation_priority < 0.6:
         print('warning: you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states')
         warnings.warn('warning you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states')
 
