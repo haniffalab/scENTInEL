@@ -234,6 +234,8 @@ def LR_train(adata, train_x_partition, train_label, penalty='elasticnet', sparci
 #        predict_label = train_label[subset_predict]
 #        train_label = train_label[subset_train]
         train_x = adata.X#[adata.obs.index.isin(list(adata.obs[subset_train].index))]
+        model = lr.fit(train_x, train_label)
+        model.features = np.array(adata.var.index)
 #        predict_x = adata.X[adata.obs.index.isin(list(adata.obs[subset_predict].index))]
     elif train_x_partition in adata.obsm.keys():
         # Define training parameters
@@ -248,8 +250,10 @@ def LR_train(adata, train_x_partition, train_label, penalty='elasticnet', sparci
 #        predict_x = pd.DataFrame(predict_x)
 #        predict_x.index = adata.obs[subset_predict].index
     # Train predictive model using user defined partition labels (train_x_partition ,train_label, predict_x)
-    model = lr.fit(train_x, train_label)
-    model.features = np.array(adata.var.index)
+    #model = lr.fit(train_x, train_label)
+        model = lr.fit(train_x, train_label)
+        model.features = np.array(list(range(0,(adata.obsm['X_scvi']).shape[1])))
+    #model.features = np.array(adata.var.index)
     return model
 
 def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, penalty='elasticnet', sparcity = 0.2,l1_ratio=0.5,train_label = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6],thread_num = -1,loss= 'logloss',sketch_tune = False, **kwargs):

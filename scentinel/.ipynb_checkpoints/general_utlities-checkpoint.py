@@ -538,7 +538,12 @@ def V0_2_empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_k
     adata_samp = adata[final_sample_indices,:]
     return adata_samp, final_sample_indices
 
-
+def calculate_entropy(args):
+    adata, indices = args
+    labels = adata.obs['int.labels'].values[indices]
+    label_counts = np.bincount(labels, minlength=len(unique_labels))
+    probabilities = label_counts / len(indices)
+    return entropy(probabilities).sum()
 
 
 def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='connectivity_ratio', **kwargs):
@@ -585,19 +590,16 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     if weight_penalty == 'entropy_distance':
         print('Using distance-entropy penalisation weights, this module is multi-threaded and quite compute intensive. If facing issues, use connectivity_ratio instead')
         # Calculate entropy for each neighborhood in advance
-        def calculate_entropy(indices):
-            labels = adata.obs['int.labels'].values[indices]
-            label_counts = np.bincount(labels, minlength=len(unique_labels))
-            probabilities = label_counts / len(indices)
-            return entr(probabilities).sum()
         all_labels = adata.obs['int.labels'].values
         neighborhood_indices = [np.nonzero(neighborhood_matrix[idx])[1] for idx in range(adata.shape[0])]
         # Calculate entropy for each cell in parallel
         import multiprocessing
         with multiprocessing.Pool() as pool:
-            neighborhood_entropies = np.array(list(pool.map(calculate_entropy, neighborhood_indices)))
+            neighborhood_entropies = np.array(list(pool.map(calculate_entropy, [(adata, idx) for idx in neighborhood_indices])))
 
 
+    # Create a dictionary to store the neighborhood entropy for each label at each iteration
+    neighborhood_entropies_iter = {label: [] for label in range(len(unique_labels))}
     sampling_probabilities_over_iterations = np.zeros((iterations, len(unique_labels)))
     for _ in range(iterations):
         print('Iteration: {}'.format(_))
@@ -626,15 +628,21 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
                 # Calculate the ratio of same-label weights to different-label weights
                 # Add a small constant in the denominator to avoid division by zero
                 weights = (same_label_weights )/ (different_label_weights + 1e-8) # if same label sum distances are 0, do not consider this cell
-                weights = weights/np.sum(weights)
+                weights = weights/np.sum(weights) # this normnalisation means that every label has normalised set of weights to bias selection
 
              # Here we determine the liklighood that a sampled cell forms consistant neigthborhood using the mean distance to all neighbors * by the entropy of the neighborhood 
 
             if weight_penalty == 'entropy_distance':
-                weights =  np.array(neighborhoods.sum(axis=1)).ravel()
-                weights *= (neighborhood_entropies[indices] + 1e-8)  # use pre-computed entropies
-                weights = 1 / weights
-                weights = weights / np.sum(weights)
+                # We take neighborhoods that share the same labels and compute the sum of weights between same labels
+    #             np.array(neighborhoods[:, indices].sum(axis=1)).ravel()
+                same_label_mask = np.array(adata.obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
+                same_label_mask = scipy.sparse.diags(same_label_mask)  # convert to diagonal matrix for multiplication
+                same_label_neighborhoods = neighborhoods[:, indices] 
+                weights = (np.array(same_label_neighborhoods.sum(axis=1)).ravel()+ 1e-8) # We take the sum of weights to all neighbors of the same label here
+                #1/weights give us the inverse where big weights are big distances
+                weights *= (1/(neighborhood_entropies[indices] + 1e-8))  # use pre-computed entropies
+    #             weights = weights
+                weights = weights / np.sum(weights) # this normnalisation means that every label has normalised set of weights to bias selection
 
             # Update weights based on representation priority and label probabilities
             # This should be a combination of the neighborhood-based weights and the label probability-based weights
@@ -654,7 +662,26 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
         label_counts = np.bincount(sample_labels, minlength=len(unique_labels))
         label_probs = dict(zip(range(len(unique_labels)), label_counts / label_counts.sum()+1e-8))
         # Store the sampling probabilities for this iteration
-        sampling_probabilities_over_iterations[_, :] = np.array(list(label_probs.values())) 
+        sampling_probabilities_over_iterations[_, :] = np.array(list(label_probs.values()))
+
+        # Calculate the entropy for the sampled cells
+        for label in label_indices.keys():
+            # Get the indices of the sampled cells for the current label
+            sampled_indices = [idx for idx in sample_indices if adata.obs['int.labels'][idx] == label]
+            if sampled_indices:
+                # Get neighborhoods of the sampled cells
+                same_label_neighborhoods = neighborhood_matrix[sampled_indices]
+                # Get the indices of the connected cells
+                connected_indices = same_label_neighborhoods.nonzero()[1]
+                # Get the labels of the connected cells
+                connected_labels = adata.obs['int.labels'].values[connected_indices]
+                # Calculate the entropy for the current label
+                label_counts = np.bincount(connected_labels, minlength=len(unique_labels))
+                probabilities = label_counts / len(connected_indices)
+                entropy_val = entropy(probabilities)
+                neighborhood_entropies_iter[label].append(entropy_val)
+            else:
+                neighborhood_entropies_iter[label].append(None)
 
     average_sampling_probabilities = sampling_probabilities_over_iterations.mean(axis=0)
     updated_label_probs = dict(zip(range(len(unique_labels)), average_sampling_probabilities))
@@ -690,4 +717,41 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
         sampled_indices = np.random.choice(indices, size=sample_size, replace=replace, p=specific_weights)
         final_sample_indices.extend(sampled_indices)
     adata_samp = adata[final_sample_indices,:]
+    all_weights
+
+
+
+    # plot entropy change per iteration
+    # Calculate the number of columns for the legend
+    ncol = math.ceil(len(unique_labels) / 20)  # Adjust the denominator to control the number of legend entries per column
+
+    # Create a figure and an axes object
+    fig, ax = plt.subplots(figsize=(5 + ncol, 5))  # Adjust as needed. The width of the axes object will be always 5.
+
+    # Compute the initial entropies for the whole dataset
+    initial_entropies = {}
+    for label in label_indices.keys():
+        indices = label_indices[label]
+        same_label_neighborhoods = neighborhood_matrix[indices]
+        connected_indices = same_label_neighborhoods.nonzero()[1]
+        connected_labels = adata.obs['int.labels'].values[connected_indices]
+        label_counts = np.bincount(connected_labels, minlength=len(unique_labels))
+        probabilities = label_counts / len(connected_indices)
+        entropy_val = entropy(probabilities)
+        initial_entropies[label] = entropy_val
+
+    # Plot the change in neighborhood entropy over iterations for each label
+    for label, entropies in neighborhood_entropies_iter.items():
+        # Prepend the initial entropy to the list of entropies
+        all_entropies = [initial_entropies[label]] + entropies
+        ax.plot(range(len(all_entropies)), all_entropies, label=unique_labels[label])
+
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('Scaled Neighborhood Entropy')
+    # Set the y-axis to logarithmic scale
+    ax.set_yscale('log')
+    # Place the legend outside the plot, scaled with the height of the plot and spread into columns
+    ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1), borderaxespad=0., ncol=ncol)
+    plt.tight_layout()
+    plt.show()
     return adata_samp, final_sample_indices

@@ -64,7 +64,6 @@ import pandas as pd
 import pickle as pkl
 import numpy as np
 import scipy
-import matplotlib.pyplot as plt
 import re
 import glob
 import os
@@ -535,21 +534,19 @@ def plot_class_distribution(adata, adata_samp, feat_use):
     width_per_class = 0.1
     fig_width = max(12, num_classes * width_per_class)
     fig, ax = plt.subplots(1, 2, figsize=(fig_width, 10))
-    # If there are fewer than 150 classes, use a bar plot
+    # If there are fewer than 120 classes, use a bar plot
     if num_classes < 120:
-        #adata.obs[feat_use].value_counts().plot(kind='bar', ax=ax[0])#adata.obs[feat_use].value_counts().sort_index().plot(kind='bar', ax=ax[0])
-        #adata_samp.obs[feat_use].value_counts().plot(kind='bar', ax=ax[1])#adata_samp.obs[feat_use].value_counts().sort_index().plot(kind='bar', ax=ax[1])
         sns.histplot(adata.obs[feat_use],color='blue', label='Original Data', kde=True, ax=ax[0])
-        #adata_samp.obs[feat_use].sort_index().plot(kind='hist', bins=20, ax=ax[1])
         sns.histplot(adata_samp.obs[feat_use], color='red', label='Sampled Data', kde=True,ax=ax[1])
     # Otherwise, use a histogram
     else:
         # Set number of bins
         bins = min(50, num_classes)
-        #adata.obs[feat_use].sort_index().plot(kind='hist', bins=20, ax=ax[0])
         sns.histplot(adata.obs[feat_use] , bins=bins,color='blue', label='Original Data', kde=True, ax=ax[0])
-        #adata_samp.obs[feat_use].sort_index().plot(kind='hist', bins=20, ax=ax[1])
         sns.histplot(adata_samp.obs[feat_use], bins=bins, color='red', label='Sampled Data', kde=True,ax=ax[1])
+        # Remove x-axis labels
+        ax[0].set_xticklabels([])
+        ax[1].set_xticklabels([])
     ax[0].set_title('Before Sampling')
     ax[1].set_title('After Sampling')
     plt.setp(ax[0].xaxis.get_majorticklabels(), rotation=90)
@@ -557,45 +554,66 @@ def plot_class_distribution(adata, adata_samp, feat_use):
     plt.tight_layout()
     plt.show()
 
-def compute_weights(adata, feat_use, knn_key):
+def compute_weights(adata, feat_use, knn_key,weight_penalty ='connectivity_ratio', **kwargs):
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
     # Convert string labels to integer labels
     unique_labels, indices = np.unique(adata.obs[feat_use], return_inverse=True)
-    obs = adata.obs.copy()
-    obs['int.labels'] = indices
+    adata.obs['int.labels'] = indices
 
     neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
 
     # Get indices for each label
-    label_indices = {label: np.where(obs['int.labels'] == label)[0] for label in range(len(unique_labels))}
+    label_indices = {label: np.where(adata.obs['int.labels'] == label)[0] for label in range(len(unique_labels))}
 
     weights_list = []
 
     for label in label_indices:
-        indices = label_indices[label]
-        neighborhoods = neighborhood_matrix[indices][:, indices]  # select neighborhoods for the current label
+        if weight_penalty == "connectivity_ratio":
+            indices = label_indices[label]
+            neighborhoods = neighborhood_matrix[indices][:, indices]  # select neighborhoods for the current label
 
-        same_label_mask = np.array(obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
-        same_label_mask = scipy.sparse.diags(same_label_mask)  # convert to diagonal matrix for multiplication
+            same_label_mask = np.array(adata.obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
+            same_label_mask = scipy.sparse.diags(same_label_mask)  # convert to diagonal matrix for multiplication
 
-        same_label_neighborhoods = same_label_mask @ neighborhoods @ same_label_mask  # get neighborhoods of same-label cells
-        different_label_neighborhoods = neighborhoods - same_label_neighborhoods  # get neighborhoods of different-label cells
+            same_label_neighborhoods = same_label_mask @ neighborhoods @ same_label_mask  # get neighborhoods of same-label cells
+            different_label_neighborhoods = neighborhoods - same_label_neighborhoods  # get neighborhoods of different-label cells
 
-        same_label_weights = np.array(same_label_neighborhoods.sum(axis=1)).ravel()
-        different_label_weights = np.array(different_label_neighborhoods.sum(axis=1)).ravel()
+            same_label_weights = np.array(same_label_neighborhoods.sum(axis=1)).ravel()
+            different_label_weights = np.array(different_label_neighborhoods.sum(axis=1)).ravel()
 
-        # Calculate the ratio of same-label weights to different-label weights
-        # Add a small constant in the denominator to avoid division by zero
-        weights = same_label_weights+ 1e-8 / (different_label_weights + 1e-8)
-        weights = weights/np.sum(weights)
-
+            # Calculate the ratio of same-label weights to different-label weights
+            # Add a small constant in the denominator to avoid division by zero
+            weights = same_label_weights+ 1e-8 / (different_label_weights + 1e-8)
+        elif weight_penalty == "entropy_distance":
+            indices = label_indices[label]
+            same_label_neighborhoods = neighborhood_matrix[indices] # get neighborhoods of same-label cells
+            # For sparse matrices, the non-zero indices can be obtained using the non-zero function (nnz)
+            connected_indices = same_label_neighborhoods.nonzero()[1]
+            # Get labels of connected cells
+            connected_labels = adata.obs['int.labels'].values[connected_indices]
+            # Calculate entropy of connected labels
+            label_counts = np.bincount(connected_labels, minlength=len(np.unique(adata.obs['int.labels'].values)))
+            probabilities = label_counts / len(connected_indices)
+            entropy_val = entropy(probabilities)
+            # Compute the distance-entropy weight (distance to )
+            weights = np.array(same_label_neighborhoods.sum(axis=1)).ravel() * entropy_val
         weights_list.extend(weights)
 #     weights_list = np.array(weights_list) / np.sum(weights_list)
     return weights_list
 
 
-def compute_sampling_probabilities(adata, feat_use, knn_key):
+def compute_sampling_probabilities(adata, feat_use, knn_key,**kwargs):
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
     # Calculate weights
-    weights = compute_weights(adata, feat_use, knn_key)
+    weights = compute_weights(adata, feat_use, knn_key,**kwargs)
     # Normalize weights to probabilities
     sampling_probabilities = weights / np.sum(weights)
     return sampling_probabilities
@@ -631,7 +649,7 @@ def plot_sampling_metrics(adata,adata_samp, feat_use, knn_key, weights=None,**kw
     sns.histplot(adata_sampling_probabilities, color='blue', label='Original Data', kde=True)
     sns.histplot(adata_samp_sampling_probabilities, color='red', label='Sampled Data', kde=True)
     plt.xscale('log')  # apply log scale
-    plt.yscale('log')
+#     plt.yscale('log')
     plt.title('Weight Distribution of Sampled Points vs Original Data')
     plt.legend()
     plt.show()
