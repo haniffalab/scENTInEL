@@ -539,8 +539,8 @@ def V0_2_empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_k
     return adata_samp, final_sample_indices
 
 def calculate_entropy(args):
-    adata, indices = args
-    labels = adata.obs['int.labels'].values[indices]
+    labels, indices = args
+    labels = labels[indices]
     label_counts = np.bincount(labels, minlength=len(unique_labels))
     probabilities = label_counts / len(indices)
     return entropy(probabilities).sum()
@@ -595,7 +595,8 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
         # Calculate entropy for each cell in parallel
         import multiprocessing
         with multiprocessing.Pool() as pool:
-            neighborhood_entropies = np.array(list(pool.map(calculate_entropy, [(adata, idx) for idx in neighborhood_indices])))
+                neighborhood_entropies = np.array(list(pool.map(calculate_entropy, [(all_labels, idx) for idx in neighborhood_indices])))
+
 
 
     # Create a dictionary to store the neighborhood entropy for each label at each iteration
