@@ -562,7 +562,8 @@ def compute_weights(adata, feat_use, knn_key,weight_penalty ='connectivity_ratio
         kwargs.update(locals())
     # Convert string labels to integer labels
     unique_labels, indices = np.unique(adata.obs[feat_use], return_inverse=True)
-    adata.obs['int.labels'] = indices
+    obs = adata.obs[:]
+    obs['int.labels'] = indices
 
     neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
 
@@ -576,7 +577,7 @@ def compute_weights(adata, feat_use, knn_key,weight_penalty ='connectivity_ratio
             indices = label_indices[label]
             neighborhoods = neighborhood_matrix[indices][:, indices]  # select neighborhoods for the current label
 
-            same_label_mask = np.array(adata.obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
+            same_label_mask = np.array(obs['int.labels'][indices] == label, dtype=int)  # get mask for same-label cells
             same_label_mask = scipy.sparse.diags(same_label_mask)  # convert to diagonal matrix for multiplication
 
             same_label_neighborhoods = same_label_mask @ neighborhoods @ same_label_mask  # get neighborhoods of same-label cells
@@ -594,9 +595,9 @@ def compute_weights(adata, feat_use, knn_key,weight_penalty ='connectivity_ratio
             # For sparse matrices, the non-zero indices can be obtained using the non-zero function (nnz)
             connected_indices = same_label_neighborhoods.nonzero()[1]
             # Get labels of connected cells
-            connected_labels = adata.obs['int.labels'].values[connected_indices]
+            connected_labels = obs['int.labels'].values[connected_indices]
             # Calculate entropy of connected labels
-            label_counts = np.bincount(connected_labels, minlength=len(np.unique(adata.obs['int.labels'].values)))
+            label_counts = np.bincount(connected_labels, minlength=len(np.unique(obs['int.labels'].values)))
             probabilities = label_counts / len(connected_indices)
             entropy_val = entropy(probabilities)
             # Compute the distance-entropy weight (distance to )
