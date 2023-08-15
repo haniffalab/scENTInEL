@@ -46,7 +46,7 @@ Scentinel is a probabilistic ensemble framework designed for mapping large singl
 ## Notes for approaches:
 ## Mini-batch SGD PageRank with Laplacian Matrix
 
-PageRank is an iterative method to compute the importance of each node in a graph. The original idea, pioneered by Google founders Larry Page and Sergey Brin, was that the importance of a webpage is determined by the importance of the pages that link to it.
+PageRank is an iterative method to compute the importance of each node in a graph. The original idea, pioneered by Google founders Larry Page and Sergey Brin, was that the importance of a webpage is determined by the importance of the pages that link to it. We add a series of full_batch updates at the end of mini_batch updates for fine tuning. We also introduce a visit counter for every node, increasing the probability of visit for every iteration is a node is not visited. This can cause some oscilating behaviour after all nodes are visited. 
 
 ### Classic PageRank Formula
 
