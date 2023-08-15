@@ -66,6 +66,16 @@ Where:
 
 Our implementation integrates the use of the Laplacian matrix and a mini-batch stochastic gradient descent (SGD) approach to optimize the PageRank values iteratively.
 
+Pros:
+Efficiency: When working with large graphs, updating the scores of all nodes in each iteration can be computationally expensive. By using mini-batches, the algorithm can make progress towards convergence using only a fraction of the nodes in each iteration.
+Escape Local Minima: The randomness introduced by mini-batches can help the algorithm escape local minima.
+
+Cons:
+No Guarantee of Visiting All Nodes: As you correctly pointed out, there's no guarantee that all nodes will be visited. Some nodes might be visited multiple times while others might not be visited at all.
+Convergence Stability: The stochastic nature can lead to more noisy updates, which might affect the stability of convergence.
+
+it's worth noting that the strength of SGD, especially with mini-batches, is that it often works well in practice, even without visiting all data points (or nodes, in this case), because the random subsets often provide a good enough approximation for the entire dataset.
+ 
 #### Laplacian Approach
 
 The normalized Laplacian matrix captures the structure of the graph in a way that nodes are penalized for having a high degree, considering both local and global structures. The formula to compute the normalized matrix is:
