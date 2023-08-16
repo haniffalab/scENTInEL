@@ -639,29 +639,29 @@ def plot_sampling_metrics(adata,adata_samp, feat_use, knn_key, weights=None,**kw
 #     adata_samp_probabilities = adata_samp_weights / np.sum(adata_samp_weights)
     plot_class_distribution(adata,adata_samp,feat_use)
     
-    # Compute sampling probabilities for original and sampled data
-    adata_sampling_probabilities = compute_sampling_probabilities(adata, feat_use, knn_key=knn_key)
-    adata_samp_sampling_probabilities = compute_sampling_probabilities(adata_samp, feat_use, knn_key=knn_key)
+#     # Compute sampling probabilities for original and sampled data
+#     adata_sampling_probabilities = compute_sampling_probabilities(adata, feat_use, knn_key=knn_key)
+#     adata_samp_sampling_probabilities = compute_sampling_probabilities(adata_samp, feat_use, knn_key=knn_key)
 
     
-    # Weight Distribution of Sampled Points:
-    print("Weight Distribution of Sampled Points vs Original Data: This histogram compares the weight distribution of your original dataset to your sampled dataset. Weights here represent the sum of connection strengths (weights) of nearest neighbors in the k-nearest neighbors graph. If the sampling strategy is working as intended, you should see that the sampled data's weight distribution is similar to the original data, indicating that the sampling has preserved the relative density of points in the feature space. Large deviations might suggest that the sampling is not preserving the structure of the data well.")
-    plt.figure(figsize=(10, 6))
-    sns.histplot(adata_sampling_probabilities, color='blue', label='Original Data', kde=True)
-    sns.histplot(adata_samp_sampling_probabilities, color='red', label='Sampled Data', kde=True)
-    plt.xscale('log')  # apply log scale
-#     plt.yscale('log')
-    plt.title('Weight Distribution of Sampled Points vs Original Data')
-    plt.legend()
-    plt.show()
+#     # Weight Distribution of Sampled Points:
+#     print("Weight Distribution of Sampled Points vs Original Data: This histogram compares the weight distribution of your original dataset to your sampled dataset. Weights here represent the sum of connection strengths (weights) of nearest neighbors in the k-nearest neighbors graph. If the sampling strategy is working as intended, you should see that the sampled data's weight distribution is similar to the original data, indicating that the sampling has preserved the relative density of points in the feature space. Large deviations might suggest that the sampling is not preserving the structure of the data well.")
+#     plt.figure(figsize=(10, 6))
+#     sns.histplot(adata_sampling_probabilities, color='blue', label='Original Data', kde=True)
+#     sns.histplot(adata_samp_sampling_probabilities, color='red', label='Sampled Data', kde=True)
+#     plt.xscale('log')  # apply log scale
+# #     plt.yscale('log')
+#     plt.title('Weight Distribution of Sampled Points vs Original Data')
+#     plt.legend()
+#     plt.show()
 
-    # Sampling Probability and Weight Relationship:
-    print("Sampling Probability vs Weights of Nearest Neighbors: This scatter plot shows the relationship between the weights of nearest neighbors and the sampling probability for each point. Since the sampling probability is proportional to the weight (sum of connection strengths), you expect to see a positive correlation. The sampled data (marked in different color) should follow the same trend as the original data, suggesting that the sampling has preserved the relative importance of points based on their connection strengths.")
-    plt.figure(figsize=(10, 6))
-    plt.scatter(adata_weights, adata_sampling_probabilities, label='Original Data', alpha=0.5)
-    plt.scatter(adata_samp_weights, adata_samp_sampling_probabilities, label='Sampled Data', alpha=0.5)
-    plt.xlabel('Sum of Weights of Nearest Neighbors')
-    plt.ylabel('Sampling Probability')
-    plt.title('Sampling Probability vs Weights of Nearest Neighbors')
-    plt.legend()
-    plt.show()
+#     # Sampling Probability and Weight Relationship:
+#     print("Sampling Probability vs Weights of Nearest Neighbors: This scatter plot shows the relationship between the weights of nearest neighbors and the sampling probability for each point. Since the sampling probability is proportional to the weight (sum of connection strengths), you expect to see a positive correlation. The sampled data (marked in different color) should follow the same trend as the original data, suggesting that the sampling has preserved the relative importance of points based on their connection strengths.")
+#     plt.figure(figsize=(10, 6))
+#     plt.scatter(adata_weights, adata_sampling_probabilities, label='Original Data', alpha=0.5)
+#     plt.scatter(adata_samp_weights, adata_samp_sampling_probabilities, label='Sampled Data', alpha=0.5)
+#     plt.xlabel('Sum of Weights of Nearest Neighbors')
+#     plt.ylabel('Sampling Probability')
+#     plt.title('Sampling Probability vs Weights of Nearest Neighbors')
+#     plt.legend()
+#     plt.show()

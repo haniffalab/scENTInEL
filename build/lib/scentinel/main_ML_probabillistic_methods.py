@@ -474,7 +474,7 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
     train_label = feat_use
     kwargs.update(locals())
     model = LR_train(adata = adata_temp, **kwargs)
-    model.features = list(adata_temp.var.index)
+#    model.features = list(adata_temp.var.index)
     return model
 
 def compute_weighted_impact(varm_file, top_loadings, threshold=0.05, **kwargs):
