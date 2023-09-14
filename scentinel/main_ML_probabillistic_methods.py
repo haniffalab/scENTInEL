@@ -252,7 +252,7 @@ def LR_train(adata, train_x_partition, train_label, penalty='elasticnet', sparci
     # Train predictive model using user defined partition labels (train_x_partition ,train_label, predict_x)
     #model = lr.fit(train_x, train_label)
         model = lr.fit(train_x, train_label)
-        model.features = np.array(list(range(0,(adata.obsm['X_scvi']).shape[1])))
+        model.features = np.array(list(range(0,(adata.obsm[train_x_partition]).shape[1])))
     #model.features = np.array(adata.var.index)
     return model
 

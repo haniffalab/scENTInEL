@@ -538,7 +538,7 @@ def pagerank(M, num_iterations=100, d=0.85, tolerance=1e-6):
             break
             
     plt.figure(figsize=(10,6))
-    plt.plot(list(l2_norm_dic.keys()), list(l2_norm_dic.values()))
+    plt.plot(list(l2_dic.keys()), list(l2_dic.values()))
     plt.yscale("log")
     plt.xlabel('Iteration')
     plt.ylabel('L2 Norm')
