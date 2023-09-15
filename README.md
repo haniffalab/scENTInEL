@@ -13,12 +13,53 @@ To clone and install:
 
 ```pip install .```
 
-## Introduction
+## About
 
-Scentinel is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities.
+Scentinel is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities in an ensemble format for the purposes of dynamic structuring, label harmonisation and state deconvolution.
+
+## Project team
+Issac Goh, Newcastle University; Sanger institute (https://haniffalab.com/team/issac-goh.html)
+
+### Contact
+Issac Goh, (ig7@sanger.ac.uk)
+
+## Built With
+[Scanpy](https://scanpy.readthedocs.io/en/stable/)   
+...
+...
+...
+
+## Getting Started
+This package takes as input:
+  - An anndata object
+  - A categorical data variable containing labels/states
+  - A 2D array containing some XY dimensionality-reduced coordinates (PCA, VAE, etc...)
+  - A sparse 2D matrix (CSR) containing cell-cell weighted connectivities (KNN, etc...)
+
+### Installation:
+To install directly from github run below in command line
+
+```bash
+pip install git+git@github.com:Issacgoh/scENTInEL.git
+```
+
+To clone and install:
+```bash
+git clone https://github.com/Issacgoh/scENTInEL.git
+
+cd ./graphimate
+
+pip install .
+```
+### Running Locally
+This package was designed to run within a Jupyter notebook to utilise fully the interactive display interfaces. Functions can also be run locally via a python script. 
+Please see the example notebook under "/example_notebooks/"
+
+### Production
+To deploy this package for large data submitted to schedulers on HPCs or VMs, please see the example given in "/example_notebooks/". 
+
 
 ## Workflow
-
 1. **Input and Dimensionality Reduction:** Scentinel initiates by taking an AnnData object as input. This package is agnostic to the type of dimensionality-reduced input. It can process outputs from PCA, VAE, linearly decoded VAE, NMF, or any other embedding structure. For use cases requiring inductive transfer learning generalizability, the package can directly handle raw data such as gene-expression, CITE-seq, or ATAC.
 
 2. **Categorical Labels:** In addition to the AnnData object, Scentinel also expects a set of categorical labels to facilitate downstream ensemble learning processes.
@@ -45,6 +86,8 @@ Scentinel is a probabilistic ensemble framework designed for mapping large singl
 
 ## Notes for approaches:
 ## Mini-batch SGD PageRank with Laplacian Matrix
+
+![Randomwalk and pagerank accumulation profiles using SGD-pagerank in simulated data ]()
 
 PageRank is an iterative method to compute the importance of each node in a graph. The original idea, pioneered by Google founders Larry Page and Sergey Brin, was that the importance of a webpage is determined by the importance of the pages that link to it. We add a series of full_batch updates at the end of mini_batch updates for fine tuning. We also introduce a visit counter for every node, increasing the probability of visit for every iteration is a node is not visited. This can cause some oscilating behaviour after all nodes are visited. 
 
