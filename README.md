@@ -96,8 +96,9 @@ PageRank is an iterative method to compute the importance of each node in a grap
 Mathematically, the classic PageRank equation for a node \(i\) is:
 
 \[
-PR(i) = (1 - d) + d 	imes \sum_{j \in M(i)} rac{PR(j)}{L(j)}
+PR(i) = (1 - d) + d \times \sum_{j \in M(i)} \frac{PR(j)}{L(j)}
 \]
+
 
 Where:
 - \( PR(i) \) is the PageRank of node \(i\).
@@ -124,7 +125,7 @@ it's worth noting that the strength of SGD, especially with mini-batches, is tha
 The normalized Laplacian matrix captures the structure of the graph in a way that nodes are penalized for having a high degree, considering both local and global structures. The formula to compute the normalized matrix is:
 
 \[
-L_{	ext{normalized}} = D^{-rac{1}{2}} L D^{-rac{1}{2}}
+L_{\text{normalized}} = D^{-\frac{1}{2}} L D^{-\frac{1}{2}}
 \]
 
 Where \(L\) is the Laplacian matrix and \(D\) is the diagonal matrix of node degrees. By penalizing nodes with a higher degree, the normalized Laplacian offers a balance between local and global importance in the graph.
