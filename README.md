@@ -87,7 +87,7 @@ To deploy this package for large data submitted to schedulers on HPCs or VMs, pl
 ## Notes for approaches:
 ## Mini-batch SGD PageRank with Laplacian Matrix
 
-![Randomwalk and pagerank accumulation profiles using SGD-pagerank in simulated data ]()
+![Randomwalk and pagerank accumulation profiles using SGD-pagerank in simulated data ](https://github.com/Issacgoh/scENTInEL/blob/main/example_notebooks/Dev_models/pagerank_progression.gif)
 
 PageRank is an iterative method to compute the importance of each node in a graph. The original idea, pioneered by Google founders Larry Page and Sergey Brin, was that the importance of a webpage is determined by the importance of the pages that link to it. We add a series of full_batch updates at the end of mini_batch updates for fine tuning. We also introduce a visit counter for every node, increasing the probability of visit for every iteration is a node is not visited. This can cause some oscilating behaviour after all nodes are visited. 
 
