@@ -15,7 +15,7 @@ To clone and install:
 
 ## About
 
-Scentinel is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities in an ensemble format for the purposes of dynamic structuring, label harmonisation and state deconvolution.
+Scentinel (Single-cell Ensemble Network for Transfer Integration and Enriched Learning) is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities in an ensemble format for the purposes of dynamic structuring, label harmonisation and state deconvolution.
 
 ## Project team
 Issac Goh, Newcastle University; Sanger institute (https://haniffalab.com/team/issac-goh.html)
