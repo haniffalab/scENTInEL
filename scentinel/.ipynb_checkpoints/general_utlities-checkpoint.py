@@ -1019,3 +1019,83 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     weights_out['all_weights'] = all_weights
     weights_out['all_indices'] = all_indices
     return adata_samp, final_sample_indices, weights_out
+
+
+def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='laplacian_SGD_pagerank',pl_label_entropy=False,resample_clones=False, **kwargs):
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+  
+    print('Non-stratified sampling based on attention weights chosen')
+
+    if representation_priority > 0.8:
+        print('warning: you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states')
+        warnings.warn('warning you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states')
+    
+    neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
+    # Calculate total sample size and sample size per label for equal allocation
+    total_sample_size = int(sampling_rate * adata.shape[0])
+#     sample_size_per_label = total_sample_size // len(unique_labels)
+
+    if weight_penalty == "laplacian_SGD_pagerank":# This is essentially an attention score
+        print('Using Laplacian-SGD-Pagerank penalty term, this is similar in concept to an attention score in GANs but incorperates stochastic gradient descent version of pagerank')
+        # This is essentially the calculation of the Laplacian of the graph.
+        # Calculate degrees
+        degrees = np.array(neighborhood_matrix.sum(axis=1)).flatten() +1 # this is a generalization of the concept of degree for weighted graphs
+        # Calculate inverse square root of degrees
+        inv_sqrt_degrees = 1 / np.sqrt(degrees)
+        # Create diagonal matrix of inverse square root degrees
+        inv_sqrt_deg_matrix = scipy.sparse.diags(inv_sqrt_degrees)
+        # Apply transformation to the adjacency matrix
+        normalized_matrix = inv_sqrt_deg_matrix @ neighborhood_matrix @ inv_sqrt_deg_matrix
+    #     # Now you can use normalized_matrix in place of neighborhood_matrix
+    #     attention_score = normalized_matrix[indices].sum(axis = 1)
+    # Convert your sparse matrix to a csr_matrix if it's not already
+        csr_matrix = normalized_matrix.tocsr()
+        attention_scores, l2_norm_dic = SGDpagerank(csr_matrix, num_iterations=1000,sampling_method='probability_based', mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, full_batch_update_iters=100)
+    
+    print("proceeding to 2 stage sampling using attention scores as priors")
+    # Add the attention scores to the observation dataframe
+    adata.obs['sf_attention'] = attention_scores
+
+    # Iterate over each unique stratifying variable
+    # for n in adata.obs[strat_var].unique():
+    tmp_obs = adata.obs#[adata.obs[strat_var] == n]
+    indices = range(len(tmp_obs))
+    attention_scores_tmp = tmp_obs['sf_attention']
+
+    # Apply softmax to attention scores
+    e_v = np.exp(attention_scores_tmp - np.max(attention_scores_tmp))
+    sf_attention = e_v / e_v.sum()
+
+    # Calculate total sample size
+    total_sample_size = int(sampling_rate * len(tmp_obs))
+
+    # Initialize list to store all sampled indices
+    all_sampled_indices = []
+
+    # Conduct sampling N times (100 by default)
+    N = 100
+    for i in range(N):
+        sampled_indices = np.random.choice(indices, size=total_sample_size, replace=False, p=sf_attention)
+        all_sampled_indices.extend(sampled_indices)
+
+    # Count the frequency of each index
+    index_freq = Counter(all_sampled_indices)
+
+    # Convert the frequencies to probabilities
+    total_samples = sum(index_freq.values())
+    sampling_probabilities = {index: freq / total_samples for index, freq in index_freq.items()}
+
+    # Convert dictionary keys and values to lists for sampling
+    sample_indices = list(sampling_probabilities.keys())
+    sample_probs = list(sampling_probabilities.values())
+
+    sampled_indices_from_output = np.random.choice(sample_indices, size=total_sample_size, p=sample_probs, replace=False)
+
+    adata_samp = adata[sampled_indices_from_output]
+    print("Sampling complete!")
+    
+    return adata_samp,sample_probs, attention_scores
