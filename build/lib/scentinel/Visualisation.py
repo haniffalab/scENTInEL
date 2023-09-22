@@ -100,7 +100,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 import pandas as pd
-import pymc3 as pm
+# import pymc3 as pm
 from scipy.sparse import csr_matrix
 from scipy.stats import entropy
 # Main_plotting_modules
@@ -568,7 +568,7 @@ def compute_weights(adata, feat_use, knn_key,weight_penalty ='connectivity_ratio
     neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
 
     # Get indices for each label
-    label_indices = {label: np.where(adata.obs['int.labels'] == label)[0] for label in range(len(unique_labels))}
+    label_indices = {label: np.where(obs['int.labels'] == label)[0] for label in range(len(unique_labels))}
 
     weights_list = []
 

@@ -1,3 +1,5 @@
+import warnings
+warnings.simplefilter(action='ignore')
 from .data_loaders import *
 from .general_utlities import *
 from .raw_preprocessing_methods import *

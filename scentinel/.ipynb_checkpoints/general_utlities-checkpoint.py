@@ -467,7 +467,11 @@ def V0_3_empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_k
         #weights = same_label_weights / (different_label_weights + 1e-8)
     #     weights = weights / weights.sum()  # normalization to probabilities
         specific_weights = np.array(all_weights[indices]) / np.sum(all_weights[indices])
-        sampled_indices = np.random.choice(indices, size=sample_size, replace=replace, p=specific_weights)
+        try:
+            sampled_indices = np.random.choice(indices, size=sample_size, replace=replace, p=specific_weights)
+        except:
+            print('Warning -- sampling for {} without replacement failed, defaulting to taking all cells in this category'.format(label))
+            sampled_indices = np.random.choice(indices, size=len(indices), replace=False, p=specific_weights)
         final_sample_indices.extend(sampled_indices)
     adata_samp = adata[final_sample_indices,:]
     all_weights
@@ -956,7 +960,11 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     #         print('prior Non-Clone proportion == {}'.format( (len(list(set(sample_indices)))/len(sample_indices))))
             sample_indices_n_dic = {}
             for _niter in range(0,50):
-                sample_indices_n = np.random.choice(indices, size=sample_size, replace=replace, p=specific_weights)
+                try:
+                    sample_indices_n = np.random.choice(indices, size=sample_size, replace=replace, p=specific_weights)
+                except:
+                    print('Warning -- sampling for {} without replacement failed, defaulting to taking all cells in this category'.format(label))
+                    sample_indices_n = np.random.choice(indices, size=len(indices), replace=replace, p=specific_weights)
                 sample_indices_n_dic[_niter] = sample_indices_n
             sample_indices_n_dic
             # Combine all the samples into one list
