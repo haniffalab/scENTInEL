@@ -431,7 +431,7 @@ def pagerank(M, num_iterations=100, d=0.85, tolerance=1e-6):
 
 
 def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, 
-             full_batch_update_iters=10, dip_window=5, plateau_iterations=5, sampling_method='probability_based'):
+             full_batch_update_iters=100, dip_window=5, plateau_iterations=5, sampling_method='probability_based', **kwargs):
     """
     Calculate the PageRank of each node in a graph using a mini-batch SGD approach.
 
@@ -451,7 +451,12 @@ def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_r
     - numpy.ndarray: The PageRank score for each node in the graph.
     - dict: L2 norms for each iteration.
     """
-    
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+        
     # Initialize the size of the matrix
     N = M.shape[1]
     
@@ -676,7 +681,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     #     attention_score = normalized_matrix[indices].sum(axis = 1)
     # Convert your sparse matrix to a csr_matrix if it's not already
         csr_matrix = normalized_matrix.tocsr()
-        attention_scores, l2_norm_dic = SGDpagerank(csr_matrix, num_iterations=1000,sampling_method='probability_based', mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, full_batch_update_iters=100)
+        attention_scores, l2_norm_dic = SGDpagerank(csr_matrix, **kwargs) #num_iterations=1000,sampling_method='probability_based', mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, full_batch_update_iters=100,
 
 
 
@@ -939,7 +944,7 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
     #     attention_score = normalized_matrix[indices].sum(axis = 1)
     # Convert your sparse matrix to a csr_matrix if it's not already
         csr_matrix = normalized_matrix.tocsr()
-        attention_scores, l2_norm_dic = SGDpagerank(csr_matrix, num_iterations=1000,sampling_method='probability_based', mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, full_batch_update_iters=100)
+        attention_scores, l2_norm_dic = SGDpagerank(csr_matrix, **kwargs) #num_iterations=1000,sampling_method='probability_based', mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, full_batch_update_iters=100,
     
     print("proceeding to 2 stage sampling using attention scores as priors")
     # Add the attention scores to the observation dataframe
@@ -983,4 +988,4 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
     adata_samp = adata[sampled_indices_from_output]
     print("Sampling complete!")
     
-    return adata_samp,sample_probs, attention_scores
+    return adata_samp,sampling_probabilities, attention_scores

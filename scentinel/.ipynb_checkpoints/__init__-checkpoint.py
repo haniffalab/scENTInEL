@@ -7,4 +7,6 @@ from .bless import *
 from .Visualisation import *
 from .main_ML_probabillistic_methods import *
 from .Feature_assessment_modules import *
+from .bayes_modules import *
+from .graph_aggregation import *
 from .bless import *

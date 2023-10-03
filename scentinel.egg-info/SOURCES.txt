@@ -5,9 +5,11 @@ setup.py
 scentinel/Feature_assessment_modules.py
 scentinel/Visualisation.py
 scentinel/__init__.py
+scentinel/bayes_modules.py
 scentinel/bless.py
 scentinel/data_loaders.py
 scentinel/general_utlities.py
+scentinel/graph_aggregation.py
 scentinel/main_ML_probabillistic_methods.py
 scentinel/raw_preprocessing_methods.py
 scentinel.egg-info/PKG-INFO

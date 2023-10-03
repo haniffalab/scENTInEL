@@ -539,6 +539,8 @@ def plot_class_distribution(adata, adata_samp, feat_use):
         sns.histplot(adata.obs[feat_use],color='blue', label='Original Data', kde=True, ax=ax[0])
         sns.histplot(adata_samp.obs[feat_use], color='red', label='Sampled Data', kde=True,ax=ax[1])
     # Otherwise, use a histogram
+        ax[0].set_yscale("log")  # Set y-axis to log scale
+        ax[1].set_yscale("log")  # Set y-axis to log scale
     else:
         # Set number of bins
         bins = min(50, num_classes)
@@ -547,6 +549,8 @@ def plot_class_distribution(adata, adata_samp, feat_use):
         # Remove x-axis labels
         ax[0].set_xticklabels([])
         ax[1].set_xticklabels([])
+        ax[0].set_yscale("log")  # Set y-axis to log scale
+        ax[1].set_yscale("log")  # Set y-axis to log scale
     ax[0].set_title('Before Sampling')
     ax[1].set_title('After Sampling')
     plt.setp(ax[0].xaxis.get_majorticklabels(), rotation=90)

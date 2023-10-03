@@ -13,5 +13,5 @@ Requires-Dist: requests==2.31.0
 Requires-Dist: psutil==5.9.5
 Requires-Dist: mygene==3.2.2
 Requires-Dist: gseapy==1.0.5
-Requires-Dist: pymc3
+Requires-Dist: pymc3==3.11.5
 Requires-Dist: scikit-optimize
