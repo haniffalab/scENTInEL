@@ -669,3 +669,55 @@ def plot_sampling_metrics(adata,adata_samp, feat_use, knn_key, weights=None,**kw
 #     plt.title('Sampling Probability vs Weights of Nearest Neighbors')
 #     plt.legend()
 #     plt.show()
+
+def analyze_sampling_distribution(pre_sample_scores, post_sample_scores):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    
+    # Set up the figure layout
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(15, 12))
+    fig.suptitle('Analysis of Sampling Distributions', fontsize=16)
+
+    # Boxplot
+    sns.boxplot(data=[pre_sample_scores, post_sample_scores], orient='h', notch=True, ax=axes[0, 0])
+    axes[0, 0].set_yticklabels(['Pre-sampling', 'Post-sampling'])
+    axes[0, 0].set_title('Box plots of Attention Scores')
+
+    # KDE plots
+    sns.kdeplot(pre_sample_scores, label='Pre-sampling', shade=True, ax=axes[0, 1])
+    sns.kdeplot(post_sample_scores, label='Post-sampling', shade=True, ax=axes[0, 1])
+    axes[0, 1].set_title('KDE of Attention Scores')
+
+    # CDF plots
+    sns.ecdfplot(pre_sample_scores, label='Pre-sampling', ax=axes[1, 0])
+    sns.ecdfplot(post_sample_scores, label='Post-sampling', ax=axes[1, 0])
+    axes[1, 0].set_title('CDF of Attention Scores')
+    axes[1, 0].legend()
+
+    # Descriptive Statistics
+    pre_stats = {
+        'mean': pre_sample_scores.mean(),
+        'median': np.median(pre_sample_scores),
+        '75th percentile': np.percentile(pre_sample_scores, 75),
+        '90th percentile': np.percentile(pre_sample_scores, 90)
+    }
+
+    post_stats = {
+        'mean': post_sample_scores.mean(),
+        'median': np.median(post_sample_scores),
+        '75th percentile': np.percentile(post_sample_scores, 75),
+        '90th percentile': np.percentile(post_sample_scores, 90)
+    }
+
+    stats_str = "\n".join(
+        [f"Pre-sampling {k}: {v:.4f}" for k, v in pre_stats.items()] + 
+        ["", ""] + 
+        [f"Post-sampling {k}: {v:.4f}" for k, v in post_stats.items()]
+    )
+    axes[1, 1].axis('off')
+    axes[1, 1].text(0, 1, stats_str, verticalalignment='top', fontsize=12)
+    
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.92)
+    plt.show()

@@ -113,6 +113,7 @@ import warnings
 import h5py
 from tqdm import tqdm
 from scipy.sparse import vstack
+import gc
 
 # resource usage logger
 class DisplayCPU(threading.Thread):
@@ -280,11 +281,6 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
     pseudobulk_adata = sc.AnnData(aggregated_data, obs=obs, var=adata.var)
     return pseudobulk_adata
 
-import h5py
-from tqdm import tqdm
-from scipy.sparse import vstack
-import gc
-
 def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk_size=100):
     """
     Aggregate data in chunks for improved memory efficiency.
@@ -306,6 +302,8 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
         # Use the regular approach if not in backed mode
         print("Data is small enough to proceed with direct dot products")
         return aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method)
+    if adata_samp.isbacked:
+        adata_samp = adata_samp.to_memory()
     
     print("Data is too large to process in a single view, processing in chunks ")
     # Determine the number of chunks to process
