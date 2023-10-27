@@ -285,13 +285,16 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
     pseudobulk_adata = sc.AnnData(aggregated_data, obs=obs, var=adata.var)
     
     # Store original data neighbourhood identity
-    pseudobulk_adata.uns['neighbourhood_identity'] = anndata.AnnData(
-        X = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudobulk_adata.obs_names], :]) > 0).astype(int),
-        obs = pd.DataFrame(index = pseudobulk_adata.obs_names),
+    pseudobulk_adata.uns['orig_data_connectivity_information'] = anndata.AnnData(
+        X = adata.obsp["connectivities"],
+        obs = pd.DataFrame(index = adata.obs_names),
         var = pd.DataFrame(index = adata.obs_names),
     )
     # Store original counts per cell
-    pseudobulk_adata.uns['neighbourhood_identity'].uns['orig_counts_per_cell'] = orig_obs_counts
+    pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
+    
+    # Store connectivity binary assignment 
+    pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudo_bulk_data.obs_names], :]) > 0).astype(int)
     
     return pseudobulk_adata
 
@@ -388,13 +391,15 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
     pseudobulk_adata = sc.AnnData(aggregated_data_combined, obs=aggregated_obs, var=adata.var)
     
     # Store original data neighbourhood identity
-    pseudobulk_adata.uns['neighbourhood_identity'] = anndata.AnnData(
-        X = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudobulk_adata.obs_names], :]) > 0).astype(int),
-        obs = pd.DataFrame(index = pseudobulk_adata.obs_names),
+    pseudobulk_adata.uns['orig_data_connectivity_information'] = anndata.AnnData(
+        X = adata.obsp["connectivities"],
+        obs = pd.DataFrame(index = adata.obs_names),
         var = pd.DataFrame(index = adata.obs_names),
     )
-    
     # Store original counts per cell
-    pseudobulk_adata.uns['neighbourhood_identity'].uns['orig_counts_per_cell'] = orig_obs_counts
+    pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
+    
+    # Store connectivity binary assignment 
+    pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudo_bulk_data.obs_names], :]) > 0).astype(int)
 
     return pseudobulk_adata
