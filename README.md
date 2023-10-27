@@ -15,7 +15,7 @@ To clone and install:
 
 ## About
 
-Scentinel (Single-cell Ensemble Network for Transfer Integration and Enriched Learning) is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities in an ensemble format for the purposes of dynamic structuring, label harmonisation and state deconvolution.
+Scentinel (Single-cell Ensemble Network for Transfer Integration and Enriched Learning) is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities in an ensemble format for the purposes of dynamic structuring, summarisation, label harmonisation and state deconvolution.
 
 ## Project team
 Issac Goh, Newcastle University; Sanger institute (https://haniffalab.com/team/issac-goh.html)
@@ -64,7 +64,7 @@ To deploy this package for large data submitted to schedulers on HPCs or VMs, pl
 
 2. **Categorical Labels:** In addition to the AnnData object, Scentinel also expects a set of categorical labels to facilitate downstream ensemble learning processes.
 
-3. **Core Algorithm:** The central engine of Scentinel is a tuned probabilistic Elastic Net classifier that delivers calibrated probabilities. Additionally, the package accommodates modalities based on XGBoost and SVM.
+3. **Core Algorithm:** The central engines of Scentinel are an implementation of the Pagerank algorithm with stochastic gradient descent and a tuned probabilistic Elastic Net classifier that delivers calibrated probabilities. Additionally, the package accommodates modalities based on XGBoost and SVM.
 
 4. **Hyperparameter Optimization:** Scentinel carries out a Bayesian optimization step to tune the Elastic Net hyperparameters (alpha and L1-ratio). It utilizes negative Mean Absolute Error (neg_MAE) or log-loss as a loss function during this process. The Elastic Net objective function can be represented as:
 

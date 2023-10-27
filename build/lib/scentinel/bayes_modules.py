@@ -604,7 +604,7 @@ def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_r
 
 
 
-def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='laplacian',pl_label_entropy=False,resample_clones=False, **kwargs):
+def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='laplacian',pl_label_entropy=False,resample_clones=False,n_hops=2, **kwargs):
     # Unpack kwargs
     if kwargs:
         for key, value in kwargs.items():
@@ -632,6 +632,9 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     prior_distribution = dict(zip(range(len(unique_labels)), frequencies))
 
     neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
+    
+    #Experimental feature with 1 hop matrix
+    neighborhood_matrix = neighborhood_matrix**n_hops ## N hops shopuld be added as an option in next iter. this controls the coverage of the graph
 
     # Initialize label probabilities with prior distribution
     label_probs = prior_distribution.copy()
@@ -736,13 +739,13 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
                 # Compute the attention or importance of each cell to their neighbors
                 attention_scores=normalized_matrix[indices].sum(axis = 1)
                 weights = ((np.array(attention_scores)).flatten())
-
+#                 weights = weights*(1*10**6)
             elif weight_penalty == "laplacian_SGD_pagerank":# This is essentially an attention score with pagerank and stochastic gradient descent
                 # This is essentially the calculation of the Laplacian of the graph.
                 # Compute the attention or importance of each cell to their neighbors
                 attention_scores_= [attention_scores[i] for i in indices]
                 weights = ((np.array(attention_scores_)).flatten())
-
+#                 weights = weights*(1*10**6)
             # Update weights based on representation priority and label probabilities
             # This should be a combination of the neighborhood-based weights and the label probability-based weights
             # we intriduce a iteration decay for each iteration for label probs here
@@ -755,7 +758,6 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
             #weights = np.array(weights) / np.sum(weights)  # normalization to probabilities
             all_weights.extend(weights)
             all_indices.extend(indices)
-
         all_weights = np.array(all_weights) / np.sum(all_weights)  # normalization to probabilities
 
         if resample_clones == True:
@@ -911,7 +913,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     return adata_samp, final_sample_indices, weights_out
 
 
-def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='laplacian_SGD_pagerank',pl_label_entropy=False,resample_clones=False, **kwargs):
+def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='laplacian_SGD_pagerank',pl_label_entropy=False,resample_clones=False,n_hops=2, **kwargs):
     # Unpack kwargs
     if kwargs:
         for key, value in kwargs.items():
@@ -925,6 +927,10 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
         warnings.warn('warning you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states')
     
     neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
+    
+    #Experimental feature with 1 hop matrix
+    neighborhood_matrix = neighborhood_matrix**n_hops ## N hops shopuld be added as an option in next iter. this controls the coverage of the graph
+    
     # Calculate total sample size and sample size per label for equal allocation
     total_sample_size = int(sampling_rate * adata.shape[0])
 #     sample_size_per_label = total_sample_size // len(unique_labels)
@@ -947,6 +953,7 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
         attention_scores, l2_norm_dic = SGDpagerank(csr_matrix, **kwargs) #num_iterations=1000,sampling_method='probability_based', mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, full_batch_update_iters=100,
     
     print("proceeding to 2 stage sampling using attention scores as priors")
+    attention_scores = attention_scores*(1*10**6)
     # Add the attention scores to the observation dataframe
     adata.obs['sf_attention'] = attention_scores
 
