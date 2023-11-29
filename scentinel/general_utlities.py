@@ -264,6 +264,10 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
     else:
         expression_matrix = adata.X
 
+    # Store original counts in dataframe
+    orig_obs_counts = pd.DataFrame(index = adata.obs_names, columns=['n_counts'])
+    orig_obs_counts['n_counts'] = expression_matrix_chunk.sum(axis=1).A1
+    
     # Apply scaling factors to individual cell expression profiles
     if method == 'local':
         factors = compute_local_scaling_factors(expression_matrix, neighborhoods_matrix)
@@ -279,6 +283,19 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
     
     obs = adata.obs.iloc[indices]
     pseudobulk_adata = sc.AnnData(aggregated_data, obs=obs, var=adata.var)
+    
+    # Store original data neighbourhood identity
+    pseudobulk_adata.uns['orig_data_connectivity_information'] = anndata.AnnData(
+        X = adata.obsp["connectivities"],
+        obs = pd.DataFrame(index = adata.obs_names),
+        var = pd.DataFrame(index = adata.obs_names),
+    )
+    # Store original counts per cell
+    pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
+    
+    # Store connectivity binary assignment 
+    pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudo_bulk_data.obs_names], :]) > 0).astype(int)
+    
     return pseudobulk_adata
 
 def aggregate_data_v0_1_0(adata, adata_samp, connectivity_matrix, method='local', chunk_size=100):
@@ -311,7 +328,9 @@ def aggregate_data_v0_1_0(adata, adata_samp, connectivity_matrix, method='local'
     n_chunks = (n_samples + chunk_size - 1) // chunk_size  # Ceiling division
     aggregated_data_dict = {}
     obs_dict = {}
-
+    
+    orig_obs_counts = pd.DataFrame(index = adata.obs_names, columns=['n_counts'])
+    
     # Loop through chunks with a progress bar
     for chunk_idx in tqdm(range(n_chunks), desc="Processing chunks", unit="chunk"):
         start_idx = chunk_idx * chunk_size
@@ -332,7 +351,10 @@ def aggregate_data_v0_1_0(adata, adata_samp, connectivity_matrix, method='local'
 
         # Extract the expression matrix for these neighbors
         expression_matrix_chunk = adata[neighbor_indices].to_memory().X
-
+        
+        # Store original counts in dataframe
+        orig_obs_counts.loc[adata[neighbor_indices].obs.index, 'n_counts'] = expression_matrix_chunk.sum(axis=1).A1
+        
         # Calculate scaling factors based on the specified method
         if method == 'local':
             factors = compute_local_scaling_factors(expression_matrix_chunk, neighborhoods_matrix_chunk)
@@ -454,5 +476,20 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
     ordered_chunks = sorted(aggregated_data_dict.keys())
     aggregated_data_combined = scipy.sparse.vstack([aggregated_data_dict[idx] for idx in ordered_chunks])
     aggregated_obs = pd.concat([obs_dict[idx] for idx in ordered_chunks], axis=0)
-    # Return as AnnData object
-    return sc.AnnData(aggregated_data_combined, obs=aggregated_obs, var=adata.var)
+    
+    # Create aggregated AnnData object
+    pseudobulk_adata = sc.AnnData(aggregated_data_combined, obs=aggregated_obs, var=adata.var)
+    
+    # Store original data neighbourhood identity
+    pseudobulk_adata.uns['orig_data_connectivity_information'] = anndata.AnnData(
+        X = adata.obsp["connectivities"],
+        obs = pd.DataFrame(index = adata.obs_names),
+        var = pd.DataFrame(index = adata.obs_names),
+    )
+    # Store original counts per cell
+    pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
+    
+    # Store connectivity binary assignment 
+    pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudo_bulk_data.obs_names], :]) > 0).astype(int)
+
+    return pseudobulk_adata
