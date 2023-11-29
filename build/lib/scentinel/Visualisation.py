@@ -721,3 +721,42 @@ def analyze_sampling_distribution(pre_sample_scores, post_sample_scores):
     plt.tight_layout()
     plt.subplots_adjust(top=0.92)
     plt.show()
+
+def plot_grouped_distributions(df, plot_vars, grouping):
+    # Initialize the figure
+    fig_width = 12
+    fig, axs = plt.subplots(len(plot_vars), 1, figsize=(fig_width, 5 * len(plot_vars)))
+    
+    # Make sure axs is always a list, even if plot_vars has only one item
+    if len(plot_vars) == 1:
+        axs = [axs]
+    
+    for idx, var in enumerate(plot_vars):
+        sns.barplot(x=df.index, y=df[var], ax=axs[idx], color='blue')
+        axs[idx].set_title(f'Distribution of {var} by {grouping}')
+        axs[idx].set_xlabel(grouping)
+        axs[idx].set_ylabel("log " + var)
+        axs[idx].set_yscale("log")  # Set y-axis to log scale
+        plt.setp(axs[idx].xaxis.get_majorticklabels(), rotation=90)
+    
+    plt.tight_layout()
+    plt.show()
+
+def compute_sampling_probability(df, grouping, sample_fraction=0.1, n_iterations=1000):
+    # Step 1: Compute original proportions
+    original_counts = df.groupby(grouping).size()
+    original_proportions = original_counts / len(df)
+    
+    sampled_proportions = {group: [] for group in original_proportions.index}
+    
+    # Step 2: Perform Bootstrapping
+    for _ in range(n_iterations):
+        sampled_df = df.sample(frac=sample_fraction)
+        sampled_counts = sampled_df.groupby(grouping).size()
+        for group in original_proportions.index:
+            sampled_proportions[group].append(sampled_counts.get(group, 0) / len(sampled_df))
+    
+    # Step 3: Compute sampling proportions mean
+    sampling_probabilities = {group: np.mean(proportions) for group, proportions in sampled_proportions.items()}
+    
+    return sampling_probabilities

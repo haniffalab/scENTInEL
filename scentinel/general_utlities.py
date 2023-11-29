@@ -281,6 +281,94 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
     pseudobulk_adata = sc.AnnData(aggregated_data, obs=obs, var=adata.var)
     return pseudobulk_adata
 
+def aggregate_data_v0_1_0(adata, adata_samp, connectivity_matrix, method='local', chunk_size=100):
+    """
+    Aggregate data in chunks for improved memory efficiency.
+    
+    Parameters:
+    - adata: The main AnnData object containing expression data
+    - adata_samp: Subset of AnnData for which pseudocells are created
+    - connectivity_matrix: Matrix indicating cell connectivity (e.g., from kNN graph)
+    - method: Method for scaling ('local', 'global', or 'none')
+    - chunk_size: Number of samples to process in each chunk
+    
+    Returns:
+    - AnnData object with aggregated data
+    """
+
+    # Check if in backed mode
+    is_backed = adata.isbacked
+    if not is_backed and len(adata)<1000000:
+        # Use the regular approach if not in backed mode
+        print("Data is small enough to proceed with direct dot products")
+        return aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method)
+    if adata_samp.isbacked:
+        adata_samp = adata_samp.to_memory()
+    
+    print("Data is too large to process in a single view, processing in chunks ")
+    # Determine the number of chunks to process
+    n_samples = adata_samp.shape[0]
+    n_chunks = (n_samples + chunk_size - 1) // chunk_size  # Ceiling division
+    aggregated_data_dict = {}
+    obs_dict = {}
+
+    # Loop through chunks with a progress bar
+    for chunk_idx in tqdm(range(n_chunks), desc="Processing chunks", unit="chunk"):
+        start_idx = chunk_idx * chunk_size
+        end_idx = min(start_idx + chunk_size, n_samples)
+        current_chunk = adata_samp[start_idx:end_idx]
+        obs_dict[chunk_idx] = adata_samp.obs.iloc[start_idx:end_idx]
+
+        # Get indices of cells in the current chunk
+        #indices = adata.obs.index.isin(current_chunk.obs.index).nonzero()[0]
+        indices = adata.obs.index.get_indexer(current_chunk.obs.index)
+        # Extract the corresponding neighborhood matrix
+        neighborhoods_matrix_chunk = connectivity_matrix[indices]
+        # Identify unique neighbor indices for cells in this chunk
+        neighbor_indices = np.unique(neighborhoods_matrix_chunk.nonzero()[1])
+
+        # Adjust neighborhood matrix to only cover relevant neighbors
+        neighborhoods_matrix_chunk = connectivity_matrix[indices, :][:, neighbor_indices]
+
+        # Extract the expression matrix for these neighbors
+        expression_matrix_chunk = adata[neighbor_indices].to_memory().X
+
+        # Calculate scaling factors based on the specified method
+        if method == 'local':
+            factors = compute_local_scaling_factors(expression_matrix_chunk, neighborhoods_matrix_chunk)
+        elif method == 'global':
+            factors = compute_global_scaling_factors(expression_matrix_chunk)
+        elif method == 'sum':
+            aggregated_data_chunk = eighborhoods_matrix_chunk.dot(expression_matrix_chunk)
+        else:
+            factors = np.ones(expression_matrix_chunk.shape[0])
+            
+        if method != 'sum':
+            # Normalize data using scaling factors
+            normalized_data_chunk = expression_matrix_chunk.multiply(np.reciprocal(factors)[:, np.newaxis])
+
+            # Aggregate the normalized data using the neighborhood matrix
+            aggregated_data_chunk = neighborhoods_matrix_chunk.dot(normalized_data_chunk)
+
+        # Store in dictionary with chunk_idx as the key
+        aggregated_data_dict[chunk_idx] = aggregated_data_chunk
+            
+
+        # Delete variables that are not needed to free up memory
+        del current_chunk
+        del neighborhoods_matrix_chunk
+        del expression_matrix_chunk
+        del aggregated_data_chunk
+        # Suggest to the garbage collector to cleanup
+        gc.collect()
+
+    # Combine results from all chunks using ordered indices
+    ordered_chunks = sorted(aggregated_data_dict.keys())
+    aggregated_data_combined = scipy.sparse.vstack([aggregated_data_dict[idx] for idx in ordered_chunks])
+    aggregated_obs = pd.concat([obs_dict[idx] for idx in ordered_chunks], axis=0)
+    # Return as AnnData object
+    return sc.AnnData(aggregated_data_combined, obs=aggregated_obs, var=adata.var)
+
 def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk_size=100):
     """
     Aggregate data in chunks for improved memory efficiency.
@@ -338,24 +426,26 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
             factors = compute_local_scaling_factors(expression_matrix_chunk, neighborhoods_matrix_chunk)
         elif method == 'global':
             factors = compute_global_scaling_factors(expression_matrix_chunk)
+        elif method == 'sum':
+            aggregated_data_chunk = neighborhoods_matrix_chunk.dot(expression_matrix_chunk)
         else:
             factors = np.ones(expression_matrix_chunk.shape[0])
+            
+        if method != 'sum':
+            # Normalize data using scaling factors
+            normalized_data_chunk = expression_matrix_chunk.multiply(np.reciprocal(factors)[:, np.newaxis])
 
-        # Normalize data using scaling factors
-        normalized_data_chunk = expression_matrix_chunk.multiply(np.reciprocal(factors)[:, np.newaxis])
-
-        # Aggregate the normalized data using the neighborhood matrix
-        aggregated_data_chunk = neighborhoods_matrix_chunk.dot(normalized_data_chunk)
+            # Aggregate the normalized data using the neighborhood matrix
+            aggregated_data_chunk = neighborhoods_matrix_chunk.dot(normalized_data_chunk)
 
         # Store in dictionary with chunk_idx as the key
         aggregated_data_dict[chunk_idx] = aggregated_data_chunk
+            
 
         # Delete variables that are not needed to free up memory
         del current_chunk
         del neighborhoods_matrix_chunk
         del expression_matrix_chunk
-        del factors
-        del normalized_data_chunk
         del aggregated_data_chunk
         # Suggest to the garbage collector to cleanup
         gc.collect()

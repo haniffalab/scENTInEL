@@ -108,6 +108,9 @@ from scipy.stats import entropy
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import LabelEncoder
 import warnings
+
+from multiprocessing import cpu_count, Pool
+from tqdm import tqdm
 # Utils
 
 def compute_label_log_losses(df, true_label, pred_columns):
@@ -390,6 +393,147 @@ def V0_3_empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_k
     plt.show()
     return adata_samp, final_sample_indices
 
+
+def parallel_update(chunk_data):
+    """
+    Function to be used in parallel processing for updating matrix.
+    """
+    KNN_main_chunk, latest_updates, chunk_indices = chunk_data
+    for idx in chunk_indices:
+        KNN_main_chunk[idx, :] = latest_updates[idx]
+    return KNN_main_chunk
+
+def update_connectivity_matrix_in_chunks_parallel(KNN_main, updates_dict, chunk_size=1000):
+    """
+    Updates the connectivity matrix in chunks for memory efficiency.
+    
+    Args:
+    - KNN_main: The main connectivity matrix.
+    - updates_dict: Dictionary containing updates for each epoch.
+    - chunk_size: Size of each chunk for updating the matrix.
+
+    Returns:
+    An updated connectivity matrix.
+    """
+    # Determine the latest epoch for each vertex
+    latest_updates = {}
+    for epoch, (indices, KNN_hop) in updates_dict.items():
+        for idx, original_idx in enumerate(indices):
+            latest_updates[original_idx] = KNN_hop[idx, :]
+
+    all_indices = sorted(list(latest_updates.keys()))
+    total_indices = len(all_indices)
+
+    # Check if parallel processing is possible
+    num_cpus = cpu_count()
+
+    if num_cpus > 1:
+        with Pool(processes=num_cpus) as pool:
+            chunk_data = [(KNN_main.copy(), latest_updates, all_indices[i:i+chunk_size]) 
+                          for i in range(0, total_indices, chunk_size)]
+            
+            results = list(tqdm(pool.imap(parallel_update, chunk_data), total=len(chunk_data)))
+            for i, updated_chunk in enumerate(results):
+                start_idx = i * chunk_size
+                end_idx = start_idx + chunk_size
+                KNN_main[start_idx:end_idx, :] = updated_chunk[start_idx:end_idx, :]
+    else:
+        # Update the main matrix in chunks without parallel processing
+        for i in tqdm(range(0, total_indices, chunk_size)):
+            chunk_indices = all_indices[i:i+chunk_size]
+            for idx in chunk_indices:
+                KNN_main[idx, :] = latest_updates[idx]
+    
+    # Ensure the matrix is symmetrical
+    KNN_main = (KNN_main + KNN_main.transpose()).tocsr()
+    KNN_main.data = np.where(KNN_main.data > 0, 1, 0)
+
+    return KNN_main
+
+def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=1000):
+    """
+    Updates the connectivity matrix in chunks for memory efficiency with a progress bar.
+    
+    Args:
+    - KNN_main: The main connectivity matrix.
+    - updates_dict: Dictionary containing updates for each epoch.
+    - chunk_size: Size of each chunk for updating the matrix.
+
+    Returns:
+    An updated connectivity matrix.
+    """
+    print("Updating connectivity matrix in chunks")
+    # Determine the latest epoch for each vertex
+    latest_updates = {}
+    for epoch, (indices, KNN_hop) in updates_dict.items():
+        for idx, original_idx in enumerate(indices):
+            latest_updates[original_idx] = KNN_hop[idx, :]
+
+    all_indices = sorted(list(latest_updates.keys()))
+    total_indices = len(all_indices)
+
+    # Update the main matrix in chunks with tqdm progress bar
+    for i in tqdm(range(0, total_indices, chunk_size), total=len(range(0, total_indices, chunk_size))):
+        chunk_indices = all_indices[i:i+chunk_size]
+        for idx in chunk_indices:
+            KNN_main[idx, :] = latest_updates[idx]
+    
+    # Ensure the matrix is symmetrical
+    KNN_main = (KNN_main + KNN_main.transpose()).tocsr()
+    KNN_main.data = np.where(KNN_main.data > 0, 1, 0)
+
+    return KNN_main
+
+
+# Update the main function to use the corrected update function
+def expand_neighborhoods_chunked(adata, adata_samp, param_set):
+    KNN_main = adata.obsp['connectivities']
+    updates_dict = {}  # Store the updates for each epoch
+    results_dict = {}  # Final results dictionary
+    
+    epoch = 0
+    hop_v_indices = [1]  # Initialize with a non-empty list to start the loop.
+    samp_indices = np.where(adata.obs.index.isin(adata_samp.obs.index))[0]
+
+    while epoch <= param_set['epoch'] and len(hop_v_indices) > 0:
+        print(f"Epoch: {epoch}")
+        
+        # Extract submatrix based on sampled data
+        KNN_tmp = KNN_main[adata.obs.index.isin(adata_samp.obs.index)]
+        KNN_tmp.data = np.where(KNN_tmp.data > 0, 1, 0)
+
+        # Find indices not connected to any sampled node
+        if epoch == 0:
+            indices = np.where(KNN_tmp.sum(axis=0) <= param_set['alpha'])[1]
+        else:
+            indices = hop_v_indices
+
+        KNN_hop = KNN_main[indices]
+        KNN_hop = KNN_hop * KNN_main
+
+        # Convert KNN_hop to a temporary binary neighborhood matrix
+        KNN_hop_tmp = KNN_hop[:, samp_indices].copy()
+        KNN_hop_tmp.data = np.where(KNN_hop_tmp.data > 0, 1, 0)
+        
+        hop_v_indices = np.where(KNN_hop_tmp.sum(axis=1) <= param_set['alpha'])[0]
+        updates_dict[epoch] = (indices, KNN_hop)
+
+        epoch += 1
+
+    # Reconstruct the main matrix using the chunked update function
+    KNN_updated = update_connectivity_matrix_in_chunks(KNN_main, updates_dict)
+    
+    results_dict["main_matrix"] = KNN_updated
+    results_dict["updates"] = updates_dict
+    sp_v_indices = np.where(results_dict['main_matrix'].sum(axis=0) <= param_set['alpha'])[1]
+    print("Remaining unconnected node count is: {}".format(len(sp_v_indices)))
+
+    return results_dict
+
+# results = expand_neighborhoods_chunked_corrected(adata, adata_samp, param_set)
+
+
+
 def pagerank(M, num_iterations=100, d=0.85, tolerance=1e-6):
     """
     Calculate the PageRank of each node in a graph.
@@ -430,7 +574,7 @@ def pagerank(M, num_iterations=100, d=0.85, tolerance=1e-6):
     return v, l2_dic
 
 
-def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, 
+def SGDpagerank_v0_1_0(M, init_vect=None, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, 
              full_batch_update_iters=100, dip_window=5, plateau_iterations=5, sampling_method='probability_based', **kwargs):
     """
     Calculate the PageRank of each node in a graph using a mini-batch SGD approach.
@@ -461,8 +605,13 @@ def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_r
     N = M.shape[1]
     
     # Initialize PageRank vector with random values and normalize
-    v = np.random.rand(N, 1)
-    v = v / np.linalg.norm(v, 1)
+    if init_vect is None:
+        print("No pre-rank vector provided, proceeding with randomised intialisation")
+        v = np.random.rand(N, 1)
+        v = v / np.linalg.norm(v, 1)
+    else:
+        print("Pre-initialised vector provided")
+        v = init_vect
     
     # Initialize last PageRank vector to infinity for convergence checks
     last_v = np.ones((N, 1)) * np.inf
@@ -601,7 +750,184 @@ def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_r
         print("Erratic behavious post this second dip should trend downwards. This shows that dispite having visited all nodes and thus oscillating, we still see gradual model improvement")
     
     return v, l2_dic
+    
 
+def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, 
+             full_batch_update_iters=100, dip_window=5, plateau_iterations=5, sampling_method='probability_based',init_vect=None, **kwargs):
+    """
+    Calculate the PageRank of each node in a graph using a mini-batch SGD approach.
+
+    Parameters:
+    - M (scipy.sparse.csr_matrix): The adjacency matrix of the graph.
+    - num_iterations (int): The maximum number of iterations to perform.
+    - mini_batch_size (int): Number of nodes to sample in each iteration.
+    - initial_learning_rate (float): Initial learning rate for the SGD updates.
+    - tolerance (float): Convergence threshold.
+    - d (float): Damping factor.
+    - full_batch_update_iters (int): Number of iterations for the full-batch update phase.
+    - dip_window (int): Window size for smoothing L2 norms.
+    - plateau_iterations (int): Number of consecutive iterations where the gradient should remain stable for early stopping.
+    - sampling_method (str): Method to sample nodes ('probability_based' or 'cyclic').
+
+    Returns:
+    - numpy.ndarray: The PageRank score for each node in the graph.
+    - dict: L2 norms for each iteration.
+    """
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+        
+    # Initialize the size of the matrix
+    N = M.shape[1]
+    
+    # Initialize PageRank vector with random values and normalize
+    if init_vect is None:
+        print("No pre-rank vector provided, proceeding with randomised intialisation")
+        v = np.random.rand(N, 1)
+        v = v / np.linalg.norm(v, 1)
+    else:
+        print("Pre-initialised vector provided")
+        v = init_vect
+    
+    # Initialize last PageRank vector to infinity for convergence checks
+    last_v = np.ones((N, 1)) * np.inf
+    
+    # Dictionary to store L2 norms for each iteration
+    l2_dic = {}
+    
+    # Set to keep track of visited nodes (for cyclic sampling)
+    visited_nodes = set()
+    
+    # Initialize counters and lists for plateau and dip detection
+    plateau_count = 0
+    dips_detected = 0
+    dip_positions = []
+
+    # Initialize an array to keep track of node visit counts (for probability-based sampling)
+    visited_counts = np.zeros(N)
+
+    for iter_ in range(num_iterations):
+        # Decay the learning rate to ensure convergence
+        learning_rate = initial_learning_rate / ((1 + iter_)/10)
+        
+        # Probability-based sampling
+        if sampling_method == 'probability_based':
+            probabilities = 1 / (1 + visited_counts)
+            probabilities /= probabilities.sum()
+            mini_batch_indices = np.random.choice(N, size=mini_batch_size, replace=False, p=probabilities)
+        
+        # Cyclic sampling
+        elif sampling_method == 'cyclic':
+            if len(visited_nodes) < N:
+                remaining_nodes = list(set(range(N)) - visited_nodes)
+                mini_batch_indices = np.random.choice(remaining_nodes, size=min(mini_batch_size, len(remaining_nodes)), replace=False)
+            else:
+                mini_batch_indices = np.random.choice(N, size=mini_batch_size, replace=False)
+            
+            # Update the set of visited nodes
+            visited_nodes.update(mini_batch_indices)
+        
+        # Update node visit counts
+        visited_counts[mini_batch_indices] += 1
+        
+        # Extract the mini-batch from the matrix and the PageRank vector
+        M_mini_batch = M[mini_batch_indices, :]
+        v_mini_batch = v[mini_batch_indices]
+        
+        # Store the current PageRank values for convergence checks
+        last_v = v_mini_batch
+        
+        # Update the PageRank values using the mini-batch
+        v_mini_batch = d * (learning_rate * M_mini_batch @ v) + ((1 - d) / N)
+        v[mini_batch_indices] = v_mini_batch
+        
+        # Compute and store the L2 norm of the difference between the current and last PageRank values
+        l2_norm = np.linalg.norm(v_mini_batch - last_v)
+        l2_dic[iter_] = l2_norm
+        
+        # Compute smoothed L2 norms for dip detection
+        if iter_ > dip_window:
+            smoothed_values = np.convolve(list(l2_dic.values()), np.ones(dip_window)/dip_window, mode='valid')
+            gradient = smoothed_values[-1] - smoothed_values[-2]
+            
+            # Detect dips in the smoothed L2 norms
+            if gradient < -1.5 * np.std(smoothed_values):
+                dips_detected += 1
+                dip_positions.append(iter_)
+
+        # Check for convergence
+        if l2_norm < tolerance:
+            print('Converged at iteration {}'.format(iter_))
+            break
+        
+        # Early stopping based on smoothed L2 norms
+        gradient_variance_window = 10
+        if iter_ > gradient_variance_window:
+            gradient_values = np.diff(smoothed_values)
+            variance_of_gradient = np.var(gradient_values[-gradient_variance_window:])
+            
+            if sampling_method == 'probability_based' and dips_detected == 1:
+                if abs(gradient_values[-1]) < 0.3 * variance_of_gradient:
+                    plateau_count += 1
+                else:
+                    plateau_count = 0
+
+            elif sampling_method == 'cyclic' and dips_detected > 1:
+                if abs(gradient) < 0.5 * variance_of_gradient:
+                    plateau_count += 1
+                else:
+                    plateau_count = 0
+
+            # If the gradient has been stable for a number of iterations, stop early
+            if plateau_count >= plateau_iterations:
+                print(f'Early stopping at iteration {iter_} due to plateau in L2 norm changes.')
+                break
+
+    # If the algorithm hasn't converged in the given number of iterations, display a message
+    if iter_ == num_iterations-1:
+        print('pagerank model did not converge during the mini-batch phase')
+    
+    # Refine the PageRank values using full-batch updates
+    print("Proceeding on to perform fine-tuning across full-batch")
+    for _ in range(full_batch_update_iters):
+        last_v_global = v.copy()
+        v = d * (M @ v) + ((1 - d) / N)
+        l2_norm_global = np.linalg.norm(v - last_v_global)
+        l2_dic[iter_ + _ + 1] = l2_norm_global
+    
+    # Plot the L2 norms, smoothed L2 norms, dips, and detected plateaus
+    plt.figure(figsize=(10,6))
+    plt.plot(list(l2_dic.keys()), list(l2_dic.values()), label="Original L2 Norm")
+    smoothed_l2 = np.convolve(list(l2_dic.values()), np.ones(dip_window)/dip_window, mode='valid')
+    plt.plot(range(dip_window - 1, dip_window - 1 + len(smoothed_l2)), smoothed_l2, 'r-', label="Smoothed L2 Norm")
+    
+    for dip in dip_positions:
+        plt.axvline(x=dip, color='g', linestyle='--')
+    
+    if plateau_count >= plateau_iterations:
+        plt.axvspan(iter_ - plateau_count + 1, iter_, color='yellow', alpha=0.2, label="Detected Plateau")
+
+    # Highlight the global fine-tuning iterations
+    plt.axvspan(iter_ + 1, iter_ + full_batch_update_iters + 1, color='blue', alpha=0.1, label="Global Fine-Tuning Iterations")
+
+    plt.yscale("log")
+    plt.xlabel('Iteration')
+    plt.ylabel('L2 Norm')
+    plt.title('Convergence of PageRank')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+    
+    if sampling_method == 'probability_based':
+        print("You should observe one dip in the graph, the first post initialisation and a continual trend downwards as the model learns more structure in your data")
+        print("Erratic behavious post this initial dip should trend downwards. This shows that as the model visits more nodes, we see gradual model improvement")
+    elif sampling_method == 'cyclic':
+        print("You should observe two dips in the graph, the first post initialisation and the second when the model starts to learn some structure and making informed updates")
+        print("Erratic behavious post this second dip should trend downwards. This shows that dispite having visited all nodes and thus oscillating, we still see gradual model improvement")
+    
+    return v, l2_dic
 
 
 def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='laplacian',pl_label_entropy=False,resample_clones=False,n_hops=2, **kwargs):
@@ -929,7 +1255,7 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
     neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
     
     #Experimental feature with 1 hop matrix
-    neighborhood_matrix = neighborhood_matrix**n_hops ## N hops shopuld be added as an option in next iter. this controls the coverage of the graph
+    #neighborhood_matrix = neighborhood_matrix**n_hops ## N hops shopuld be added as an option in next iter. this controls the coverage of the graph
     
     # Calculate total sample size and sample size per label for equal allocation
     total_sample_size = int(sampling_rate * adata.shape[0])
@@ -953,7 +1279,10 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
         attention_scores, l2_norm_dic = SGDpagerank(csr_matrix, **kwargs) #num_iterations=1000,sampling_method='probability_based', mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, full_batch_update_iters=100,
     
     print("proceeding to 2 stage sampling using attention scores as priors")
+    v = attention_scores.copy()
     attention_scores = attention_scores*(1*10**6)
+    alpha = 1 # Dev note setting to higher avoids some issues due to very small numbers
+    attention_scores = attention_scores**alpha
     # Add the attention scores to the observation dataframe
     adata.obs['sf_attention'] = attention_scores
 
@@ -994,5 +1323,10 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
 
     adata_samp = adata[sampled_indices_from_output]
     print("Sampling complete!")
-    
-    return adata_samp,sampling_probabilities, attention_scores
+    weights_out = {}
+    weights_out['all_weights'] = attention_scores
+    weights_out['v'] = v
+    weights_out['all_indices'] = all_sampled_indices
+    return adata_samp,sampling_probabilities, weights_out
+
+
