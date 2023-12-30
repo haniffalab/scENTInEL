@@ -70,6 +70,7 @@ import re
 import glob
 import os
 import sys
+import gc
 #from geosketch import gs
 from numpy import cov
 import scipy.cluster.hierarchy as spc
