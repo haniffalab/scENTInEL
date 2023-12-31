@@ -450,7 +450,7 @@ def update_connectivity_matrix_in_chunks_parallel(KNN_main, updates_dict, chunk_
 
     return KNN_main
 
-def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=1000):
+def update_connectivity_matrix_in_chunks_v0_1_0(KNN_main, updates_dict, chunk_size=1000):
     """
     Updates the connectivity matrix in chunks for memory efficiency with a progress bar.
     
@@ -483,6 +483,50 @@ def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=1000
     KNN_main.data = np.where(KNN_main.data > 0, 1, 0)
 
     return KNN_main
+
+def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=1000):
+    """
+    Updates the connectivity matrix in chunks for memory efficiency with a progress bar.
+    
+    Args:
+    - KNN_main: The main connectivity matrix.
+    - updates_dict: Dictionary containing updates for each epoch.
+    - chunk_size: Size of each chunk for updating the matrix.
+
+    Returns:
+    An updated connectivity matrix.
+    """
+    print("Updating connectivity matrix in chunks")
+    
+    # Convert the main matrix to LIL format for efficient row-wise operations
+    KNN_main_lil = KNN_main.tolil()
+
+    # Process updates more efficiently
+    all_updates = []
+    for epoch, (indices, KNN_hop) in updates_dict.items():
+        for idx, original_idx in enumerate(indices):
+            all_updates.append((original_idx, KNN_hop[idx, :]))
+
+    # Sort updates by index for efficient batch updating
+    all_updates.sort(key=lambda x: x[0])
+
+    # Update the main matrix in chunks
+    for i in tqdm(range(0, len(all_updates), chunk_size), desc="Updating connectivity matrix"):
+        # Process each chunk
+        for original_idx, update in all_updates[i:i + chunk_size]:
+            KNN_main_lil[original_idx, :] = update
+        
+        # Manual memory management
+        gc.collect()
+
+    # Convert back to CSR format after updates
+    KNN_main_updated = KNN_main_lil.tocsr()
+
+    # Symmetrize the matrix efficiently
+    KNN_main_sym = KNN_main_updated.maximum(KNN_main_updated.transpose())
+    KNN_main_sym.data = np.where(KNN_main_sym.data > 0, 1, 0)
+
+    return KNN_main_sym
 
 
 # Update the main function to use the corrected update function
@@ -1255,7 +1299,7 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
     neighborhood_matrix = adata.obsp[adata.uns[knn_key]['connectivities_key']]
     
     #Experimental feature with 1 hop matrix
-    neighborhood_matrix = neighborhood_matrix**n_hops ## N hops shopuld be added as an option in next iter. this controls the coverage of the graph
+    #neighborhood_matrix = neighborhood_matrix**n_hops ## N hops shopuld be added as an option in next iter. this controls the coverage of the graph
     
     # Calculate total sample size and sample size per label for equal allocation
     total_sample_size = int(sampling_rate * adata.shape[0])

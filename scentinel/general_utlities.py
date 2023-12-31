@@ -266,7 +266,7 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
 
     # Store original counts in dataframe
     orig_obs_counts = pd.DataFrame(index = adata.obs_names, columns=['n_counts'])
-    orig_obs_counts['n_counts'] = expression_matrix_chunk.sum(axis=1).A1
+    orig_obs_counts['n_counts'] = expression_matrix.sum(axis=1).A1
     
     # Apply scaling factors to individual cell expression profiles
     if method == 'local':
