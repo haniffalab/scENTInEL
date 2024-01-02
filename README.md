@@ -1,4 +1,4 @@
-# scENTInEL: A Probabilistic Ensemble Framework for sc-Multiomic Data Transfer Learning
+# scENTInEL: A Probabilistic Ensemble Framework for sc-Multiomic Data Transfer Learning (In development) 
 
 ## Installation
 To install directly from github run below in command line
