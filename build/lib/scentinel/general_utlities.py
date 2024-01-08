@@ -487,8 +487,8 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
         obs = pd.DataFrame(index = adata.obs_names),
         var = pd.DataFrame(index = adata.obs_names),
     )
-    # Store original counts per cell
-    pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
+#     # Store original counts per cell
+#     pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
     
     # Store connectivity binary assignment 
     pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudo_bulk_data.obs_names], :]) > 0).astype(int)
