@@ -113,6 +113,17 @@ import warnings
 
 from multiprocessing import cpu_count, Pool
 from tqdm import tqdm
+
+
+from joblib import Parallel, delayed, cpu_count
+import scipy.sparse as sp
+import numpy as np
+from tqdm import tqdm
+import gc
+
+import numpy as np
+import scipy.sparse as sp
+from scipy.sparse import coo_matrix
 # Utils
 
 def compute_label_log_losses(df, true_label, pred_columns):
@@ -396,62 +407,6 @@ def V0_3_empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_k
     return adata_samp, final_sample_indices
 
 
-def parallel_update(chunk_data):
-    """
-    Function to be used in parallel processing for updating matrix.
-    """
-    KNN_main_chunk, latest_updates, chunk_indices = chunk_data
-    for idx in chunk_indices:
-        KNN_main_chunk[idx, :] = latest_updates[idx]
-    return KNN_main_chunk
-
-def update_connectivity_matrix_in_chunks_parallel(KNN_main, updates_dict, chunk_size=1000):
-    """
-    Updates the connectivity matrix in chunks for memory efficiency.
-    
-    Args:
-    - KNN_main: The main connectivity matrix.
-    - updates_dict: Dictionary containing updates for each epoch.
-    - chunk_size: Size of each chunk for updating the matrix.
-
-    Returns:
-    An updated connectivity matrix.
-    """
-    # Determine the latest epoch for each vertex
-    latest_updates = {}
-    for epoch, (indices, KNN_hop) in updates_dict.items():
-        for idx, original_idx in enumerate(indices):
-            latest_updates[original_idx] = KNN_hop[idx, :]
-
-    all_indices = sorted(list(latest_updates.keys()))
-    total_indices = len(all_indices)
-
-    # Check if parallel processing is possible
-    num_cpus = cpu_count()
-
-    if num_cpus > 1:
-        with Pool(processes=num_cpus) as pool:
-            chunk_data = [(KNN_main.copy(), latest_updates, all_indices[i:i+chunk_size]) 
-                          for i in range(0, total_indices, chunk_size)]
-            
-            results = list(tqdm(pool.imap(parallel_update, chunk_data), total=len(chunk_data)))
-            for i, updated_chunk in enumerate(results):
-                start_idx = i * chunk_size
-                end_idx = start_idx + chunk_size
-                KNN_main[start_idx:end_idx, :] = updated_chunk[start_idx:end_idx, :]
-    else:
-        # Update the main matrix in chunks without parallel processing
-        for i in tqdm(range(0, total_indices, chunk_size)):
-            chunk_indices = all_indices[i:i+chunk_size]
-            for idx in chunk_indices:
-                KNN_main[idx, :] = latest_updates[idx]
-    
-    # Ensure the matrix is symmetrical
-    KNN_main = (KNN_main + KNN_main.transpose()).tocsr()
-    KNN_main.data = np.where(KNN_main.data > 0, 1, 0)
-
-    return KNN_main
-
 def update_connectivity_matrix_in_chunks_v0_1_0(KNN_main, updates_dict, chunk_size=1000):
     """
     Updates the connectivity matrix in chunks for memory efficiency with a progress bar.
@@ -486,7 +441,7 @@ def update_connectivity_matrix_in_chunks_v0_1_0(KNN_main, updates_dict, chunk_si
 
     return KNN_main
 
-def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=1000):
+def update_connectivity_matrix_in_chunks_v0_1_0(KNN_main, updates_dict, chunk_size=1000):
     """
     Updates the connectivity matrix in chunks for memory efficiency with a progress bar.
     
@@ -532,7 +487,7 @@ def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=1000
 
 
 # Update the main function to use the corrected update function
-def expand_neighborhoods_chunked(adata, adata_samp, param_set):
+def expand_neighborhoods_chunked_v0_1_0(adata, adata_samp, param_set):
     KNN_main = adata.obsp['connectivities']
     updates_dict = {}  # Store the updates for each epoch
     results_dict = {}  # Final results dictionary
@@ -578,7 +533,208 @@ def expand_neighborhoods_chunked(adata, adata_samp, param_set):
 
 # results = expand_neighborhoods_chunked_corrected(adata, adata_samp, param_set)
 
+######################
+from joblib import Parallel, delayed, cpu_count
+import scipy.sparse as sp
+import numpy as np
+from tqdm import tqdm
+import gc
 
+import numpy as np
+import scipy.sparse as sp
+from scipy.sparse import coo_matrix
+
+def apply_adaptive_gaussian_kernel(KNN, anchor_indices, adp_variance=1.0, adp_threshold=0.1,**kwargs):
+    """
+    Apply an adaptive Gaussian kernel to the connectivity matrix.
+
+    Args:
+    - KNN: The connectivity matrix.
+    - anchor_indices: Indices of anchor nodes to preserve connections.
+    - variance: Variance parameter for the Gaussian kernel.
+    - threshold: Threshold to prune connections.
+
+    Returns:
+    A pruned connectivity matrix with Gaussian kernel applied.
+    """
+    if kwargs:
+        locals().update(kwargs)
+        kwargs.update(locals())
+    
+    print('Applying Adaptive gaussian kernel to prune connections')
+    # Convert to COO format for easier element-wise operations
+    KNN_dyn = KNN #KNN.tocoo()
+
+    # Convert KNN.data to float64 to ensure compatibility with Gaussian kernel values
+    KNN_dyn.data = KNN_dyn.data.astype(np.float64)
+
+    # Calculate Gaussian kernel values
+    gaussian_kernel_values = np.exp(-KNN_dyn.data**2 / (2.0 * adp_variance))
+
+    # Apply kernel to the connectivity matrix
+    KNN_dyn.data *= gaussian_kernel_values
+
+    # Create a mask to identify anchor connections
+    anchor_mask = np.isin(KNN_dyn.indices, anchor_indices)
+
+    # Prune connections below the threshold, except for anchor connections
+    KNN_dyn.data[~anchor_mask] = np.where(KNN_dyn.data[~anchor_mask] > adp_threshold, KNN_dyn.data[~anchor_mask], 0)
+
+    # Eliminate zero entries and convert back to CSR format
+    KNN_dyn.eliminate_zeros()
+
+    # Convert back to int64 format
+#     KNN_pruned = KNN_dyn.tocsr()
+
+    return KNN_dyn
+
+
+def process_chunk(start_idx, end_idx, updates, KNN_main_format):
+    KNN_main_local = KNN_main_format.copy()
+    for idx in range(start_idx, end_idx):
+        original_idx, update = updates[idx]
+        KNN_main_local[original_idx, :] = update
+    return KNN_main_local
+
+def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=10000, n_jobs=4):
+    """
+    Updates the connectivity matrix in chunks for memory efficiency with a progress bar.
+    
+    Args:
+    - KNN_main: The main connectivity matrix.
+    - updates_dict: Dictionary containing updates for each epoch.
+    - chunk_size: Size of each chunk for updating the matrix.
+
+    Returns:
+    An updated connectivity matrix.
+    """
+    print("Updating connectivity matrix in chunks")
+    
+    # Convert the main matrix to LIL format for efficient row-wise operations
+    KNN_main_lil = KNN_main.tolil()
+    
+    if n_jobs > 1:
+       # Check the maximum number of available cores and adjust n_jobs if necessary
+        max_cores = cpu_count()
+        print("{} compute cores available".format(max_cores))
+        n_jobs = min(n_jobs, max_cores)
+        
+        all_updates = [(original_idx, KNN_hop[idx, :])
+                       for epoch, (indices, KNN_hop) in updates_dict.items()
+                       for idx, original_idx in enumerate(indices)]
+        all_updates.sort(key=lambda x: x[0])
+    
+        print("Using parallel processing with {} jobs".format(n_jobs))
+        chunks = [(i, min(i + chunk_size, len(all_updates)), all_updates, KNN_main_lil) for i in range(0, len(all_updates), chunk_size)]
+        processed_chunks = Parallel(n_jobs=n_jobs)(delayed(process_chunk)(start, end, all_updates, KNN_main_lil) for start, end, _, _ in chunks)
+        print('Jobs returned')
+        for chunk in processed_chunks:
+            KNN_main_lil = KNN_main_lil.maximum(chunk)
+    else:
+        print("Using non-parallel processing")
+        # Process updates more efficiently
+        all_updates = []
+        for epoch, (indices, KNN_hop) in updates_dict.items():
+            for idx, original_idx in enumerate(indices):
+                all_updates.append((original_idx, KNN_hop[idx, :]))
+
+        # Sort updates by index for efficient batch updating
+        all_updates.sort(key=lambda x: x[0])
+
+        # Update the main matrix in chunks
+        for i in tqdm(range(0, len(all_updates), chunk_size), desc="Updating connectivity matrix"):
+            # Process each chunk
+            for original_idx, update in all_updates[i:i + chunk_size]:
+                KNN_main_lil[original_idx, :] = update
+        
+        # Manual memory management
+        gc.collect()
+        
+    print('Reconstructing connectivity matrix')
+    # Convert back to CSR format after updates
+    KNN_main_updated = KNN_main_lil.tocsr()
+    
+    # Symmetrize the matrix efficiently
+    KNN_main_sym = KNN_main_updated.maximum(KNN_main_updated.transpose())
+    #KNN_main_sym.data = np.where(KNN_main_sym.data > 0, 1, 0)
+
+    return KNN_main_sym
+
+def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = True, **kwargs):
+    """
+    Expands the neighborhoods in the connectivity matrix of anndata object 'adata'
+    by dynamically hopping to neighboring nodes, updating the connectivity matrix in chunks.
+    
+    Args:
+    - adata: Anndata object containing the main dataset.
+    - adata_samp: Anndata object containing the sampled dataset.
+    - n_jobs: Number of parallel jobs to use for updating the connectivity matrix.
+    - **kwargs: Additional keyword arguments including:
+        - 'epoch': Maximum number of iterations for neighborhood expansion.
+        - 'alpha': Threshold to determine connected nodes.
+
+    Returns:
+    A dictionary containing:
+    - 'main_matrix': The updated main connectivity matrix after neighborhood expansion.
+    - 'updates': A dictionary storing the updates for each epoch, including the updated matrices.
+
+    This function iteratively expands the neighborhoods in the connectivity matrix. For each epoch,
+    it identifies new nodes to connect based on a threshold 'alpha' and updates the connectivity
+    matrix. Each update is followed by a pruning stage via an adaptive gaussian kernel. The process continues until the specified number of epochs is reached or no new nodes
+    are identified. The 'updates' in the results dictionary includes the details of updates made
+    in each epoch, providing insight into the dynamic expansion process.
+    """
+    
+    #unpack kwargs
+    if kwargs:
+        locals().update(kwargs)
+    kwargs.update(locals())
+    
+    KNN_main = adata.obsp['connectivities']
+    updates_dict = {}  # Store the updates for each epoch
+    results_dict = {}  # Final results dictionary
+    
+    epoch = 0
+    hop_v_indices = [1]  # Initialize with a non-empty list to start the loop.
+    samp_indices = np.where(adata.obs.index.isin(adata_samp.obs.index))[0]
+
+    while epoch <= kwargs['epoch'] and len(hop_v_indices) > 0:
+        print(f"Epoch: {epoch}")
+        
+        # Extract submatrix based on sampled data
+        KNN_tmp = KNN_main[adata.obs.index.isin(adata_samp.obs.index)]
+        KNN_tmp.data = np.where(KNN_tmp.data > 0, 1, 0)
+
+        # Find indices not connected to any sampled node
+        if epoch == 0:
+            indices = np.where(KNN_tmp.sum(axis=0) <= kwargs['alpha'])[1]
+        else:
+            indices = hop_v_indices
+
+        KNN_hop = KNN_main[indices]
+        KNN_hop = KNN_hop * KNN_main
+
+        # Convert KNN_hop to a temporary binary neighborhood matrix
+        KNN_hop_tmp = KNN_hop[:, samp_indices].copy()
+        KNN_hop_tmp.data = np.where(KNN_hop_tmp.data > 0, 1, 0)
+        
+        hop_v_indices = np.where(KNN_hop_tmp.sum(axis=1) <= kwargs['alpha'])[0]
+        updates_dict[epoch] = (indices, KNN_hop)
+
+        epoch += 1
+
+    KNN_updated = update_connectivity_matrix_in_chunks(KNN_main, updates_dict, n_jobs=n_jobs)
+    
+    if adaptive_prune == True:
+        KNN_updated = apply_adaptive_gaussian_kernel(KNN_updated, np.where(adata.obs.index.isin(adata_samp.obs.index))[0], adp_variance=1.0, adp_threshold=0.1,**kwargs)
+    results_dict = {"main_matrix": KNN_updated, "updates": updates_dict}
+    sp_v_indices = np.where(results_dict['main_matrix'].sum(axis=0) <= kwargs['alpha'])[1]
+    print("Remaining unconnected node count is: {}".format(len(sp_v_indices)))
+
+    return results_dict
+
+# Example usage
+# result = expand_neighborhoods_chunked(adata, adata_samp, param_set, n_jobs=4)
 
 def pagerank(M, num_iterations=100, d=0.85, tolerance=1e-6):
     """
