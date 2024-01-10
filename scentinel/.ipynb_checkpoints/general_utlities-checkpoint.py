@@ -491,6 +491,6 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
 #     pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
     
     # Store connectivity binary assignment 
-    pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudo_bulk_data.obs_names], :]) > 0).astype(int)
+    #pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudo_bulk_data.obs_names], :]) > 0).astype(int)
 
     return pseudobulk_adata

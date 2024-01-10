@@ -15,7 +15,7 @@ To clone and install:
 
 ## About
 
-Scentinel (Single-cell Ensemble Network for Transfer Integration and Enriched Learning) is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities in an ensemble format for the purposes of dynamic structuring, summarisation, label harmonisation and state deconvolution. Based on an intial set of laten embeddings, SCENTINEL first identifies the most important nodes constributing information both locally globally to a manifold. It then utilises these importance rankings to derive a minimal set data which encodes an aggregation of information from all neighboring nodes. This produces an information dense dataset which can be used an inputs to a transfer learning classifier. Additional modalities can be modelled by integrating their modality-specific latent features into a aggregated graph. Representative nodes taken from this graph are thus a multi-view containing weighted aggregations of all modalities. One key benefit of creating representations this way is the ability to reconstruct the original inputs with only the aggregated representations and the weight matrix.
+Scentinel (Single-cell Ensemble Network for Transfer Integration and Enriched Learning) is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities in an ensemble format for the purposes of dynamic structuring, summarisation, label harmonisation and state deconvolution. Based on an intial set of latent embeddings, SCENTINEL first employs a dynamic neighborhood expansion strategy with adaptive gaussian kernel pruning and identifies the most important nodes constributing information both locally globally to a manifold. It then utilises these importance rankings to derive a minimal set data which encodes an aggregation of information from all neighboring nodes. This produces an information dense dataset which can be used an inputs to a transfer learning classifier. Additional modalities can be modelled by integrating their modality-specific latent features into a aggregated graph. Representative nodes taken from this graph are thus a multi-view containing weighted aggregations of all modalities. One key benefit of creating representations this way is the ability to reconstruct the original inputs with only the aggregated representations and the weight matrix.
 
 
 
@@ -67,7 +67,7 @@ To deploy this package for large data submitted to schedulers on HPCs or VMs, pl
 ## Workflow
 1. **Input and Dimensionality Reduction:** Scentinel initiates by taking an AnnData object as input. This package is agnostic to the type of dimensionality-reduced input. It can process outputs from PCA, VAE, linearly decoded VAE, NMF, or any other embedding structure. For use cases requiring inductive transfer learning generalizability, the package can directly handle raw data such as gene-expression, CITE-seq, or ATAC.
 
-2. **Categorical Labels:** In addition to the AnnData object, Scentinel also expects a set of categorical labels to facilitate downstream ensemble learning processes.
+2. **Categorical Labels:** In addition to the AnnData object, Scentinel also expects a set of categorical labels to facilitate downstream ensemble learning processes, though this is not strictly neccesary to use during the pagerank update process for deriving anchor nodes/a pseudocell object.
 
 3. **Core Algorithm:** The central engines of Scentinel are an implementation of the Pagerank algorithm with stochastic gradient descent and a tuned probabilistic Elastic Net classifier that delivers calibrated probabilities. Additionally, the package accommodates modalities based on XGBoost and SVM.
 
@@ -114,7 +114,7 @@ Where:
 
 ### Our Implementation
 
-Our implementation integrates the use of the Laplacian matrix and a mini-batch stochastic gradient descent (SGD) approach to optimize the PageRank values iteratively.
+Our implementation integrates the use of the Laplacian matrix and a mini-batch stochastic gradient descent (SGD) approach to optimize the PageRank values iteratively, we further employ a dynamic neighborhood expansion and adaptive gaussian kernel pruning strategy to improve the anchor node identification.
 
 Pros:
 Efficiency: When working with large graphs, updating the scores of all nodes in each iteration can be computationally expensive. By using mini-batches, the algorithm can make progress towards convergence using only a fraction of the nodes in each iteration.
