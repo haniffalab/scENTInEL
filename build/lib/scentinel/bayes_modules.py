@@ -563,7 +563,7 @@ def apply_adaptive_gaussian_kernel(KNN, anchor_indices, adp_variance=1.0, adp_th
     
     print('Applying Adaptive gaussian kernel to prune connections')
     # Convert to COO format for easier element-wise operations
-    KNN_dyn = KNN #KNN.tocoo()
+    KNN_dyn = KNN.copy()
 
     # Convert KNN.data to float64 to ensure compatibility with Gaussian kernel values
     KNN_dyn.data = KNN_dyn.data.astype(np.float64)
@@ -578,15 +578,18 @@ def apply_adaptive_gaussian_kernel(KNN, anchor_indices, adp_variance=1.0, adp_th
     anchor_mask = np.isin(KNN_dyn.indices, anchor_indices)
 
     # Prune connections below the threshold, except for anchor connections
-    KNN_dyn.data[~anchor_mask] = np.where(KNN_dyn.data[~anchor_mask] > adp_threshold, KNN_dyn.data[~anchor_mask], 0)
+    KNN.data[~anchor_mask] = np.where(KNN_dyn.data[~anchor_mask] > adp_threshold, KNN.data[~anchor_mask], 0)
+    #KNN_dyn.data[~anchor_mask] = np.where(KNN_dyn.data[~anchor_mask] > adp_threshold, KNN_dyn.data[~anchor_mask], 0)
 
     # Eliminate zero entries and convert back to CSR format
-    KNN_dyn.eliminate_zeros()
+    KNN.eliminate_zeros()
 
     # Convert back to int64 format
-#     KNN_pruned = KNN_dyn.tocsr()
+    KNN = KNN.tocsr()
+    #pruned_to_zero_mask = (KNN_dyn != KNN).multiply(KNN_dyn == 0)
+    #KNN[pruned_to_zero_mask] = 0
 
-    return KNN_dyn
+    return KNN
 
 
 def process_chunk(start_idx, end_idx, updates, KNN_main_format):
@@ -655,12 +658,13 @@ def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=1000
     KNN_main_updated = KNN_main_lil.tocsr()
     
     # Symmetrize the matrix efficiently
-    KNN_main_sym = KNN_main_updated.maximum(KNN_main_updated.transpose())
+    #KNN_main_sym = KNN_main_updated.maximum(KNN_main_updated.transpose())
+    KNN_main_sym = KNN_main_updated
     #KNN_main_sym.data = np.where(KNN_main_sym.data > 0, 1, 0)
 
     return KNN_main_sym
 
-def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = True, **kwargs):
+def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = False, **kwargs):
     """
     Expands the neighborhoods in the connectivity matrix of anndata object 'adata'
     by dynamically hopping to neighboring nodes, updating the connectivity matrix in chunks.
