@@ -690,7 +690,7 @@ def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = Tr
         locals().update(kwargs)
     kwargs.update(locals())
     
-    KNN_main = adata.obsp['connectivities']
+    KNN_main = adata.obsp[adata.uns[knn_key]['connectivities_key']]
     updates_dict = {}  # Store the updates for each epoch
     results_dict = {}  # Final results dictionary
     
