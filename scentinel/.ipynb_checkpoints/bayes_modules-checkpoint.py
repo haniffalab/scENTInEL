@@ -544,7 +544,7 @@ import numpy as np
 import scipy.sparse as sp
 from scipy.sparse import coo_matrix
 
-def apply_adaptive_gaussian_kernel(KNN, anchor_indices, adp_variance=1.0, adp_threshold=0.1,**kwargs):
+def apply_adaptive_gaussian_kernel(KNN, anchor_indices, adp_variance=2.0, adp_threshold=0.2,**kwargs):
     """
     Apply an adaptive Gaussian kernel to the connectivity matrix.
 
