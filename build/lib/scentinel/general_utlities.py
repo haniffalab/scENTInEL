@@ -295,7 +295,7 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
     pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
     
     # Store connectivity binary assignment 
-    pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp[adata.uns[knn_key]['connectivities_key']][[adata.obs_names.get_loc(x) for x in pseudobulk_adata.obs_names], :]) > 0).astype(int)
+    #pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp[adata.uns[knn_key]['connectivities_key']][[adata.obs_names.get_loc(x) for x in pseudobulk_adata.obs_names], :]) > 0).astype(int)
     
     return pseudobulk_adata
 
@@ -483,7 +483,7 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
     
     # Store original data neighbourhood identity
     pseudobulk_adata.uns['orig_data_connectivity_information'] = anndata.AnnData(
-        X = adata.obsp["connectivities"],
+        X = adata.obsp[adata.uns[knn_key]['connectivities_key']],
         obs = pd.DataFrame(index = adata.obs_names),
         var = pd.DataFrame(index = adata.obs_names),
     )
