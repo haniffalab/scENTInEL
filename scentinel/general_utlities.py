@@ -252,9 +252,17 @@ def compute_global_scaling_factors(data):
     avg_counts = data.sum(axis=1).mean()
     return (data.sum(axis=1) / avg_counts).A1
 
-def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='local'):
+def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='local',**kwargs):
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+    
     indices = adata.obs.index.isin(adata_samp.obs.index).nonzero()[0]
     neighborhoods_matrix = connectivity_matrix[indices]
+    
+    
     try:
         adata.to_memory()
     except:
@@ -287,7 +295,7 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
     
     # Store original data neighbourhood identity
     pseudobulk_adata.uns['orig_data_connectivity_information'] = anndata.AnnData(
-        X = adata.obsp[adata.uns[knn_key]['connectivities_key']],
+        X = connectivity_matrix, #adata.obsp[adata.uns[knn_key]['connectivities_key']],
         obs = pd.DataFrame(index = adata.obs_names),
         var = pd.DataFrame(index = adata.obs_names),
     )
@@ -392,7 +400,7 @@ def aggregate_data_v0_1_0(adata, adata_samp, connectivity_matrix, method='local'
     # Return as AnnData object
     return sc.AnnData(aggregated_data_combined, obs=aggregated_obs, var=adata.var)
 
-def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk_size=100):
+def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk_size=100,**kwargs):
     """
     Aggregate data in chunks for improved memory efficiency.
     
@@ -406,13 +414,18 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
     Returns:
     - AnnData object with aggregated data
     """
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
 
     # Check if in backed mode
     is_backed = adata.isbacked
     if not is_backed and len(adata)<1000000:
         # Use the regular approach if not in backed mode
         print("Data is small enough to proceed with direct dot products")
-        return aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method)
+        return aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method, **kwargs)
     if adata_samp.isbacked:
         adata_samp = adata_samp.to_memory()
     
@@ -483,7 +496,7 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
     
     # Store original data neighbourhood identity
     pseudobulk_adata.uns['orig_data_connectivity_information'] = anndata.AnnData(
-        X = adata.obsp[adata.uns[knn_key]['connectivities_key']],
+        X = connectivity_matrix,#adata.obsp[adata.uns[knn_key]['connectivities_key']],
         obs = pd.DataFrame(index = adata.obs_names),
         var = pd.DataFrame(index = adata.obs_names),
     )
