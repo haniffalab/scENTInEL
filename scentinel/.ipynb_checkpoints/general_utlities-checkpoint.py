@@ -507,3 +507,103 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
     #pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudo_bulk_data.obs_names], :]) > 0).astype(int)
 
     return pseudobulk_adata
+
+
+
+import os
+import psutil
+import time
+from scipy.interpolate import UnivariateSpline
+from queue import Queue, Empty
+
+class ResourceMonitor:
+    def __init__(self):
+        self.control_queue = Queue()
+        self.sys_memory_data = []
+        self.vms_memory_data = []
+        self.rss_memory_data = []
+        self.cpu_data = []
+        self.time_data = []
+        self.thread = None
+
+    def monitor_resources(self, interval=1):
+        """Monitor system resources at intervals."""
+        pid = os.getpid()
+        current_process = psutil.Process(pid)
+        while True:
+            try:
+                message = self.control_queue.get(timeout=interval)
+                if message == "stop":
+                    break
+            except Empty:
+                pass
+            memory_usage = current_process.memory_info()
+            self.sys_memory_data.append(psutil.virtual_memory().used / (1024 ** 2))
+            self.rss_memory_data.append(memory_usage.rss / (1024 ** 2))
+            self.vms_memory_data.append(memory_usage.rss / (1024 ** 2))
+            self.cpu_data.append(psutil.cpu_percent(interval=None))
+            self.time_data.append(time.time())
+
+    def start_monitoring(self, interval=1):
+        """Start the monitoring in a separate thread."""
+        self.thread = threading.Thread(target=self.monitor_resources, args=(interval,))
+        self.thread.start()
+
+    def stop_monitoring(self):
+        """Stop the monitoring."""
+        self.control_queue.put("stop")
+        if self.thread:
+            self.thread.join()
+
+def plot_resources(monitor,mem_key = 'rss_memory_data',cpu_key = 'cpu_data'):
+    monitor.memory_data = getattr(monitor,mem_key)
+    monitor.cpu_data = getattr(monitor,cpu_key)
+    
+    """Plot the collected resource data."""
+    plt.figure(figsize=(12, 10))
+    
+    # Memory Usage Over Time
+    ax1 = plt.subplot(2, 2, 1)
+    ax1.plot(monitor.time_data, monitor.memory_data, '-o', color="blue", label="Memory Usage")
+    ax1.fill_between(monitor.time_data, 0, monitor.memory_data, color="blue", alpha=0.3)
+    ax1.set_ylim(min(monitor.memory_data) - 0.1 * min(monitor.memory_data), max(monitor.memory_data) + 0.1 * max(monitor.memory_data))
+    
+    # Add smoothed spline for memory data
+    spl_memory = UnivariateSpline(monitor.time_data, monitor.memory_data, s=100)
+    ax1.plot(monitor.time_data, spl_memory(monitor.time_data), 'k-', linewidth=2, label="Smoothed Memory Usage")
+    
+    ax1.set_title("{} Usage Over Time".format(mem_key))
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Memory (MB)")
+    ax1.legend()
+    
+    # CPU Usage Over Time
+    ax2 = plt.subplot(2, 2, 2)
+    ax2.plot(monitor.time_data, monitor.cpu_data, '-o', color="red", label="CPU Usage")
+    ax2.fill_between(monitor.time_data, 0, monitor.cpu_data, color="red", alpha=0.3)
+    ax2.set_ylim(min(monitor.cpu_data) - 5, max(monitor.cpu_data) + 5)  # giving a buffer of 5% for CPU
+    # Add smoothed spline for CPU data
+    spl_cpu = UnivariateSpline(monitor.time_data, monitor.cpu_data, s=10)
+    ax2.plot(monitor.time_data, spl_cpu(monitor.time_data), 'k-', linewidth=2, label="Smoothed CPU Usage")
+    
+    ax2.set_title("{} Usage Over Time".format(cpu_key))
+    ax2.set_xlabel("Time (s)")
+    ax2.set_ylabel("CPU (%)")
+    ax2.legend()
+    
+    # Histogram for Memory Usage
+    ax3 = plt.subplot(2, 2, 3)
+    ax3.hist(monitor.memory_data, bins=30, color="blue", alpha=0.7)
+    ax3.set_title("Histogram of {} Usage".format(mem_key))
+    ax3.set_xlabel("Memory (MB)")
+    ax3.set_ylabel("Frequency")
+    
+    # Histogram for CPU Usage
+    ax4 = plt.subplot(2, 2, 4)
+    ax4.hist(monitor.cpu_data, bins=30, color="red", alpha=0.7)
+    ax4.set_title("Histogram of {} Usage".format(cpu_key))
+    ax4.set_xlabel("CPU (%)")
+    ax4.set_ylabel("Frequency")
+    
+    plt.tight_layout()
+    plt.show()
