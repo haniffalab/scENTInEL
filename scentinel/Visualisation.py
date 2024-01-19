@@ -722,9 +722,9 @@ def analyze_sampling_distribution(pre_sample_scores, post_sample_scores):
     plt.subplots_adjust(top=0.92)
     plt.show()
 
-def plot_grouped_distributions(df, plot_vars, grouping):
+def v_0_1_0_plot_grouped_distributions(df, plot_vars, grouping):
     # Initialize the figure
-    fig_width = 12
+    fig_width = 20
     fig, axs = plt.subplots(len(plot_vars), 1, figsize=(fig_width, 5 * len(plot_vars)))
     
     # Make sure axs is always a list, even if plot_vars has only one item
@@ -741,8 +741,56 @@ def plot_grouped_distributions(df, plot_vars, grouping):
     
     plt.tight_layout()
     plt.show()
+    
+import matplotlib.lines as mlines
+def plot_grouped_distributions(df, plot_vars, grouping):
+    # Initialize the figure
+    fig_width = 20
+    fig, axs = plt.subplots(len(plot_vars), 1, figsize=(fig_width, 6 * len(plot_vars)))
+    
+    # Make sure axs is always a list, even if plot_vars has only one item
+    if len(plot_vars) == 1:
+        axs = [axs]
 
-def compute_sampling_probability(df, grouping, sample_fraction=0.1, n_iterations=1000):
+    for idx, var in enumerate(plot_vars):
+        if var in df.columns:
+            data_to_plot = df[var]
+            # Calculate the 10th percentile value for the current variable
+            percentile_10 = data_to_plot.quantile(0.025)
+        else:
+            # Handle the case where the variable is not in df's columns
+            data_to_plot = pd.Series(index=df.index, data=[0] * len(df.index))
+            percentile_10 = 0
+
+        sns.barplot(x=df.index, y=data_to_plot, ax=axs[idx], color='blue', width=0.8)  # Adjust the width of bars
+        axs[idx].set_title(f'Distribution of {var} by {grouping}')
+        axs[idx].set_xlabel(grouping)
+        axs[idx].set_ylabel("log " + var)
+        axs[idx].set_yscale("log")
+        plt.setp(axs[idx].xaxis.get_majorticklabels(), rotation=90)
+        
+        # Calculate the maximal height for markers
+        max_height = axs[idx].get_ylim()[1] * 0.95  # 95% of the maximum y-value
+
+        # Place markers at the maximal height
+        for i, value in enumerate(data_to_plot):
+            if pd.isna(value) or value == 0:
+                axs[idx].plot(i, max_height, 'r^', markersize=10)  # Red triangle marker
+            elif value > 0 and value <= percentile_10:
+                axs[idx].plot(i, max_height, 'g^', markersize=10)  # Green triangle marker
+
+    # Create legend handles using Line2D
+    red_triangle = mlines.Line2D([], [], color='none', label='Red triangle: 0 or NaN', marker='^', markersize=10, markerfacecolor='red', linestyle='None')
+    green_triangle = mlines.Line2D([], [], color='none', label='Green triangle: ≤ 10th Percentile', marker='^', markersize=10, markerfacecolor='green', linestyle='None')
+
+    # Place the legend at the bottom right of the figure
+    plt.legend(handles=[red_triangle, green_triangle], loc='upper right', bbox_to_anchor=(1.15, 1.2), fancybox=True)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def v_0_1_0_compute_sampling_probability(df, grouping, sample_fraction=0.1, n_iterations=1000):
     # Step 1: Compute original proportions
     original_counts = df.groupby(grouping).size()
     original_proportions = original_counts / len(df)
@@ -760,3 +808,42 @@ def compute_sampling_probability(df, grouping, sample_fraction=0.1, n_iterations
     sampling_probabilities = {group: np.mean(proportions) for group, proportions in sampled_proportions.items()}
     
     return sampling_probabilities
+
+
+def compute_sampling_probability(df, grouping, sample_fraction=0.1, n_iterations=1000):
+    # Initialize dictionaries to store proportions for both methods
+    stratified_proportions = {group: [] for group in df[grouping].unique()}
+    non_stratified_proportions = {group: [] for group in df[grouping].unique()}
+
+    # Compute original group distribution and find the smallest fraction
+    original_counts = df.groupby(grouping).size()
+    original_proportions = original_counts / len(df)
+    min_original_proportion = original_proportions.min()
+
+    # Perform Bootstrapping
+    for _ in range(n_iterations):
+        # Stratified Sampling
+        stratified_sample = df.groupby(grouping).sample(frac=sample_fraction)
+        stratified_counts = stratified_sample.groupby(grouping).size()
+        for group in stratified_proportions:
+            proportion = stratified_counts.get(group, 0) / len(stratified_sample)
+            stratified_proportions[group].append(proportion if proportion >= min_original_proportion else 0)
+
+        # Non-Stratified Sampling
+        non_stratified_sample = df.sample(frac=sample_fraction)
+        non_stratified_counts = non_stratified_sample.groupby(grouping).size()
+        for group in non_stratified_proportions:
+            proportion = non_stratified_counts.get(group, 0) / len(non_stratified_sample)
+            non_stratified_proportions[group].append(proportion if proportion >= min_original_proportion else 0)
+
+    # Compute mean proportions
+    stratified_sampling_probabilities = {group: np.mean(proportions) for group, proportions in stratified_proportions.items()}
+    non_stratified_sampling_probabilities = {group: np.mean(proportions) for group, proportions in non_stratified_proportions.items()}
+
+    # Combine results
+    results = {
+        "stratified": stratified_sampling_probabilities,
+        "non_stratified": non_stratified_sampling_probabilities
+    }
+
+    return results   
