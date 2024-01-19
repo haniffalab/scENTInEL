@@ -22,8 +22,8 @@ Scentinel (Single-cell Ensemble Network for Transfer Integration and Enriched Le
 The SGD-PGR method allows for online updates of the aggregated representations of the data. Relationships derived from the integration with the representative cells can be translated to the original weights matrix, and the prior weights can be used as initialised starting weights for a subsequent batched pagerank computation. 
 
 ## Project team
-Issac Goh, Newcastle University; Sanger institute (https://haniffalab.com/team/issac-goh.html)
-Antony Rose, Newcastle University; Sanger institute (https://haniffalab.com/team/antony-rose.html)
+<p>Issac Goh, Newcastle University; Sanger institute (https://haniffalab.com/team/issac-goh.html) <br>
+Antony Rose, Newcastle University; Sanger institute (https://haniffalab.com/team/antony-rose.html)</p>
 
 ### Contact
 Issac Goh, (ig7@sanger.ac.uk)
