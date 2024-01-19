@@ -15,15 +15,15 @@ To clone and install:
 
 ## About
 
-Scentinel (Single-cell Ensemble Network for Transfer Integration and Enriched Learning) is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities in an ensemble format for the purposes of dynamic structuring, summarisation, label harmonisation and state deconvolution. Based on an intial set of latent embeddings, SCENTINEL first employs a dynamic neighborhood expansion strategy with adaptive gaussian kernel pruning and identifies the most important nodes constributing information both locally globally to a manifold. It then utilises these importance rankings to derive a minimal set data which encodes an aggregation of information from all neighboring nodes. This produces an information dense dataset which can be used an inputs to a transfer learning classifier. Additional modalities can be modelled by integrating their modality-specific latent features into a aggregated graph. Representative nodes taken from this graph are thus a multi-view containing weighted aggregations of all modalities. One key benefit of creating representations this way is the ability to reconstruct the original inputs with only the aggregated representations and the weight matrix.
+Scentinel (Single-cell Ensemble Network for Transfer Integration and Enriched Learning) is a probabilistic ensemble framework designed for mapping large single-cell (sc) multi-omic datasets using either transductive or inductive transfer learning. The framework operates on pre-integrated low-dimensional latent embeddings and offers multiple algorithmic modalities in an ensemble format for the purposes of dynamic structuring, summarisation, label harmonisation, label robustness testing, and state deconvolution. Based on an intial set of latent embeddings, SCENTINEL first employs a dynamic neighborhood expansion strategy with adaptive gaussian kernel pruning and identifies the most important nodes constributing information both locally globally to a manifold. It then utilises these importance rankings to derive a minimal set data which encodes an aggregation of information from all neighboring nodes. This produces an information dense dataset which can be used an inputs to a transfer learning classifier. Additional modalities can be modelled by integrating their modality-specific latent features into a aggregated graph. Representative nodes taken from this graph are thus a multi-view containing weighted aggregations of all modalities. One key benefit of creating representations this way is the ability to reconstruct the original inputs with only the aggregated representations and the weight matrix.
 
 
 
 The SGD-PGR method allows for online updates of the aggregated representations of the data. Relationships derived from the integration with the representative cells can be translated to the original weights matrix, and the prior weights can be used as initialised starting weights for a subsequent batched pagerank computation. 
 
 ## Project team
-Issac Goh, Newcastle University; Sanger institute (https://haniffalab.com/team/issac-goh.html)
-Antony Rose, Newcastle University; Sanger institute (https://haniffalab.com/team/antony-rose.html)
+<p>Issac Goh, Newcastle University; Sanger institute (https://haniffalab.com/team/issac-goh.html) <br>
+Antony Rose, Newcastle University; Sanger institute (https://haniffalab.com/team/antony-rose.html)</p>
 
 ### Contact
 Issac Goh, (ig7@sanger.ac.uk)
