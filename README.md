@@ -130,9 +130,9 @@ it's worth noting that the strength of SGD, especially with mini-batches, is tha
 
 The normalized Laplacian matrix captures the structure of the graph in a way that nodes are penalized for having a high degree, considering both local and global structures. The formula to compute the normalized matrix is:
 
-\[
+$$
 L_{\text{normalized}} = D^{-\frac{1}{2}} L D^{-\frac{1}{2}}
-\]
+$$
 
 Where \(L\) is the Laplacian matrix and \(D\) is the diagonal matrix of node degrees. By penalizing nodes with a higher degree, the normalized Laplacian offers a balance between local and global importance in the graph.
 
@@ -184,7 +184,7 @@ def SGDpagerank(M, num_iterations, mini_batch_size, initial_learning_rate, toler
 The learning rate is updated at each iteration to ensure convergence:
 
 $$
-\alpha = \frac{1}{1 + \text{decay_rate} \cdot \text{iteration}}
+\alpha = \frac{1}{1 + \text{{decay\_rate}} \cdot \text{{iteration}}}
 $$
 
 ### PageRank Initialization
@@ -200,8 +200,9 @@ $$
 At each iteration, a subset of nodes is selected, and the PageRank vector is updated:
 
 $$
-v_{\text{mini_batch}} = d \cdot (\alpha \cdot M_{\text{mini_batch}} @ v) + \left(\frac{1 - d}{N}\right)
+v_{\text{{mini\_batch}}} = d \cdot (\alpha \cdot M_{\text{{mini\_batch}}} @ v) + \left(\frac{1 - d}{N}\right)
 $$
+
 
 where \( @ \) denotes matrix-vector multiplication.
 
