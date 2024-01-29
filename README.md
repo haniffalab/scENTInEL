@@ -71,17 +71,17 @@ To deploy this package for large data submitted to schedulers on HPCs or VMs, pl
 
 3. **Core Algorithm:** The central engines of Scentinel are an implementation of the Pagerank algorithm with stochastic gradient descent and a tuned probabilistic Elastic Net classifier that delivers calibrated probabilities. Additionally, the package accommodates modalities based on XGBoost and SVM.
 
-4. **Hyperparameter Optimization:** Scentinel carries out a Bayesian optimization step to tune the Elastic Net hyperparameters (alpha and L1-ratio). It utilizes negative Mean Absolute Error (neg_MAE) or log-loss as a loss function during this process. The Elastic Net objective function, which combines L1 and L2 regularization, can be represented as:
+4. **Hyperparameter Optimization:** Scentinel carries out a Bayesian optimization step to tune the Elastic Net hyperparameters ($\beta$ and L1-ratio). It utilizes negative Mean Absolute Error (neg_MAE) or log-loss as a loss function during this process. The Elastic Net objective function, which combines L1 and L2 regularization, can be represented as:
 
 $$
-\min_{w} \{ \frac{1}{2n} \| y - Xw \|_2^2 + \alpha \cdot \text{l1\ ratio} \cdot \| w \|_1 + \frac{1}{2} \alpha \cdot (1 - \text{l1\ ratio}) \cdot \| w \|_2^2 \}
+\min_{w} \{ \frac{1}{2n} \| y - Xw \|_2^2 + \beta \cdot \text{l1\ ratio} \cdot \| w \|_1 + \frac{1}{2} \beta \cdot (1 - \text{l1\ ratio}) \cdot \| w \|_2^2 \}
 $$
 
 In this formula:
 - `y` is the response vector.
 - `X` is the predictor matrix.
 - `w` are the coefficients to be estimated.
-- `alpha` is the overall regularization strength.
+- $\beta$ is the overall regularization strength.
 - `l1_ratio` is the Elastic Net mixing parameter, which balances between L1 and L2 regularization.
 
 Bayesian optimization is used to find the optimal values of `alpha` and `l1_ratio` that minimize the loss function, negative Mean Absolute Error (neg_MAE) or log-loss. neg_MAE is defined as:
@@ -172,7 +172,7 @@ $$
 S_i = \frac{1}{\text{degree}(i)} + C(D_i)
 $$
 
-where \( C(D_i) \) represents a correction based on the node's adjacency set.
+where $\( C(D_i) \)$ represents a correction based on the node's adjacency set.
 
 ### Matrix Scaling (Mij)
 
@@ -214,7 +214,7 @@ $$
 At each iteration, a subset of nodes is selected, and the PageRank vector is updated:
 
 $$
-hat{v}_{\text{{mini\ batch}}} = d \cdot (\Gamma \cdot M_{\text{{mini\ batch}}} @ hat{v}) + \left(\frac{1 - d}{N}\right)
+v_{\text{mini batch}} = d \cdot (\Gamma \cdot M_{\text{{mini\ batch}}} @ \hat{v}) + \left(\frac{1 - d}{N}\right)
 $$
 
 Where:
