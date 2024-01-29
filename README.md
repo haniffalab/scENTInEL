@@ -193,12 +193,12 @@ def SGDpagerank(M, num_iterations, mini_batch_size, initial_learning_rate, toler
     # ... (implementation details)
 ```
 
-### Learning Rate (Alpha)
+### Learning Rate ($\Gamma$)
 
 The learning rate is updated at each iteration to ensure convergence:
 
 $$
-\alpha = \frac{1}{1 + \text{{decay\ rate}} \cdot \text{{iteration}}}
+\Gamma = \frac{1}{1 + \text{{decay\ rate}} \cdot \text{{iteration}}}
 $$
 
 ### PageRank Initialization
@@ -214,11 +214,18 @@ $$
 At each iteration, a subset of nodes is selected, and the PageRank vector is updated:
 
 $$
-v_{\text{{mini\ batch}}} = d \cdot (\alpha \cdot M_{\text{{mini\ batch}}} @ v) + \left(\frac{1 - d}{N}\right)
+hat{v}_{\text{{mini\ batch}}} = d \cdot (\Gamma \cdot M_{\text{{mini\ batch}}} @ hat{v}) + \left(\frac{1 - d}{N}\right)
 $$
 
-
-where \( @ \) denotes matrix-vector multiplication.
+Where:
+- $\hat{v}_{\text{{mini\ batch}}}$ is the PageRank vector update for the current mini-batch iteration.
+- $\hat{v}$ is the full PageRank vector updated iteration.
+- $d$ is the damping factor, typically set to around 0.85, consistent with the classic PageRank algorithm.
+- $\Gamma$ denotes the learning rate.
+- $M_{\text{{mini\ batch}}}$ is the subset of the transition matrix corresponding to the mini-batch.
+- $@$ denotes matrix-vector multiplication.
+- $\hat{v}$ is the PageRank Initialization vector given the current iteration update.
+- $N$ is the total number of nodes in the network.
 
 ## Convergence Check
 
