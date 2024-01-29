@@ -71,12 +71,27 @@ To deploy this package for large data submitted to schedulers on HPCs or VMs, pl
 
 3. **Core Algorithm:** The central engines of Scentinel are an implementation of the Pagerank algorithm with stochastic gradient descent and a tuned probabilistic Elastic Net classifier that delivers calibrated probabilities. Additionally, the package accommodates modalities based on XGBoost and SVM.
 
-4. **Hyperparameter Optimization:** Scentinel carries out a Bayesian optimization step to tune the Elastic Net hyperparameters (alpha and L1-ratio). It utilizes negative Mean Absolute Error (neg_MAE) or log-loss as a loss function during this process. The Elastic Net objective function can be represented as:
+4. **Hyperparameter Optimization:** Scentinel carries out a Bayesian optimization step to tune the Elastic Net hyperparameters (alpha and L1-ratio). It utilizes negative Mean Absolute Error (neg_MAE) or log-loss as a loss function during this process. The Elastic Net objective function, which combines L1 and L2 regularization, can be represented as:
 
-    ```
-    ```
+$$
+\min_{w} \{ \frac{1}{2n} \| y - Xw \|_2^2 + \alpha \cdot \text{l1\ ratio} \cdot \| w \|_1 + \frac{1}{2} \alpha \cdot (1 - \text{l1\ ratio}) \cdot \| w \|_2^2 \}
+$$
 
-    Here, `y` is the response vector, `X` is the predictor matrix, `w` are the coefficients to be estimated, `alpha` is the penalty term, and `l1_ratio` is the Elastic Net mixing parameter.
+In this formula:
+- `y` is the response vector.
+- `X` is the predictor matrix.
+- `w` are the coefficients to be estimated.
+- `alpha` is the overall regularization strength.
+- `l1_ratio` is the Elastic Net mixing parameter, which balances between L1 and L2 regularization.
+
+Bayesian optimization is used to find the optimal values of `alpha` and `l1_ratio` that minimize the loss function, negative Mean Absolute Error (neg_MAE) or log-loss. neg_MAE is defined as:
+
+$$
+\text{neg\ MAE} = -\frac{1}{n} \sum \|y_i - \hat{y}_i\|
+$$
+
+Where `y_hat_i` is the predicted value for the i-th observation. The process involves creating a probabilistic model of the loss function and using it to select the most promising hyperparameter values to evaluate in the true objective function.
+
 
 5. **Training the Classifier:** With the optimal set of hyperparameters, a probabilistic multinomial Elastic Net classifier is trained.
 
@@ -100,18 +115,17 @@ PageRank is an iterative method to compute the importance of each node in a grap
 
 Mathematically, the classic PageRank equation for a node \(i\) is:
 
-\[
-PR(i) = (1 - d) + d \times \sum_{j \in M(i)} \frac{PR(j)}{L(j)}
-\]
-
-
+$$
+PR(i) = \frac{1 - d}{N} + d \times \sum_{j \in M(i)} \frac{PR(j)}{L(j)}
+$$
 
 Where:
-- \( PR(i) \) is the PageRank of node \(i\).
-- \( d \) is the damping factor, typically set to around 0.85.
-- \( M(i) \) is the set of nodes that link to node \(i\).
-- \( L(j) \) is the number of outbound links from node \(j\).
-
+- $PR(i)$ is the PageRank of node $i$.
+- $d$ is the damping factor, typically set to around 0.85.
+- $N$ is the total number of nodes in the network.
+- $M(i)$ is the set of nodes that link to node $i$.
+- $L(j)$ is the number of outbound links from node $j$.
+  
 ### Our Implementation
 
 Our implementation integrates the use of the Laplacian matrix and a mini-batch stochastic gradient descent (SGD) approach to optimize the PageRank values iteratively, we further employ a dynamic neighborhood expansion and adaptive gaussian kernel pruning strategy to improve the anchor node identification.
@@ -148,7 +162,7 @@ $$
 A^{(\alpha)} = A^{\alpha}
 $$
 
-where \( A \) is the adjacency matrix, and \( \alpha \) is the predefined number of hops ensuring all nodes have direct paths to all other nodes within \( \alpha \) hops.
+where \( A \) is the adjacency matrix, and $\( \alpha \)$ is the predefined number of hops ensuring all nodes have direct paths to all other nodes within $\( \alpha \)$ hops.
 
 ### Scaling Factor Calculation (Si)
 
@@ -184,7 +198,7 @@ def SGDpagerank(M, num_iterations, mini_batch_size, initial_learning_rate, toler
 The learning rate is updated at each iteration to ensure convergence:
 
 $$
-\alpha = \frac{1}{1 + \text{{decay\_rate}} \cdot \text{{iteration}}}
+\alpha = \frac{1}{1 + \text{{decay\ rate}} \cdot \text{{iteration}}}
 $$
 
 ### PageRank Initialization
@@ -200,7 +214,7 @@ $$
 At each iteration, a subset of nodes is selected, and the PageRank vector is updated:
 
 $$
-v_{\text{{mini\_batch}}} = d \cdot (\alpha \cdot M_{\text{{mini\_batch}}} @ v) + \left(\frac{1 - d}{N}\right)
+v_{\text{{mini\ batch}}} = d \cdot (\alpha \cdot M_{\text{{mini\ batch}}} @ v) + \left(\frac{1 - d}{N}\right)
 $$
 
 
