@@ -257,11 +257,12 @@ $$
 
 Finally, we perform sampling from the softmax-transformed PageRank scores to select nodes:
 
-- Sampling is done 100 times using the PageRank scores.
-- The observed probability of sampling is used to derive the output node indices at a given proportion.
+** Options: **
+  - Empirical stratified sampling
+  - 2 Stage monte-carlo sampling
+  - Hamiltonian monte-carlo sampling
 
-This concludes the detailed algorithmic description of the SGD PageRank methodology.
-
+For the two stage monte-calro approach, bootstrap sampling is performed 1000 times using the pre-defined softmax transformed PageRank scores. The observed probability of sampling is used to derive the output node indices at a given proportion.
 
 #### Mini-batch SGD Iterations
 
