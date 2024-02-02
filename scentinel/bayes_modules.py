@@ -757,13 +757,18 @@ def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, n_jobs=4, force
     if kwargs:
         locals().update(kwargs)
         kwargs.update(locals())
-        
+    version = 'V0.2.2'
+    print("You are running {} module".format(version))
+    
     compiled_updates = {}
     for epoch, (indices, KNN_hop) in sorted(updates_dict.items(), reverse=True):
         for idx, original_idx in enumerate(indices):
             if original_idx not in compiled_updates:
                 compiled_updates[original_idx] = KNN_hop[idx, :].tocoo()
-    
+                
+    if force_symmetry:
+                print("module to force symmetry active")
+            
     if n_jobs <= 1:
         print('Non-parallel update module chosen')
         row_updates, col_updates, data_updates = [], [], []
