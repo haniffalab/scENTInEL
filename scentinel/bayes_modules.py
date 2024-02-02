@@ -740,7 +740,7 @@ def process_chunk(compiled_updates, chunk, force_symmetry, KNN_main_shape):
             data_updates.extend(update_coo.data)
     return coo_matrix((data_updates, (row_updates, col_updates)), shape=KNN_main_shape)
 
-def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, n_jobs=4, force_symmetry=False):
+def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, n_jobs=4, force_symmetry=False,**kwargs):
     """
     Compiles updates from an updates dictionary and applies them to the KNN_main CSR matrix. Supports both
     parallel and non-parallel execution modes and can optionally force symmetry in the updates.
@@ -754,6 +754,10 @@ def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, n_jobs=4, force
     Returns:
     - csr_matrix: The updated KNN_main matrix.
     """
+    if kwargs:
+        locals().update(kwargs)
+        kwargs.update(locals())
+        
     compiled_updates = {}
     for epoch, (indices, KNN_hop) in sorted(updates_dict.items(), reverse=True):
         for idx, original_idx in enumerate(indices):
@@ -857,7 +861,7 @@ def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = Fa
         print("End of epoch {} Unconnected node count is: {}".format(epoch,len(hop_v_indices)))
         epoch += 1
 
-    KNN_updated = update_connectivity_matrix_in_chunks(KNN_main, updates_dict, n_jobs=n_jobs)
+    KNN_updated = update_connectivity_matrix_in_chunks(KNN_main, updates_dict, n_jobs=n_jobs,**kwargs)
     
     if adaptive_prune == True:
         KNN_updated = apply_adaptive_gaussian_kernel(KNN_updated, np.where(adata.obs.index.isin(adata_samp.obs.index))[0], adp_variance=1.0, adp_threshold=0.1,**kwargs)
