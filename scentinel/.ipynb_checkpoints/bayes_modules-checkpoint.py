@@ -28,10 +28,126 @@
 #    print(missing)
 #    python = sys.executable
 #    subprocess.check_call([python, '-m', 'pip', 'install', *missing], stdout=subprocess.DEVNULL)
+# import sys
+# import subprocess
+# from collections import Counter
+# from collections import defaultdict
+# import scanpy as sc
+# import pandas as pd
+# import pickle as pkl
+# import numpy as np
+# import scipy
+# import matplotlib.pyplot as plt
+# import re
+# import glob
+# import os
+# import sys
+# #from geosketch import gs
+# from numpy import cov
+# import scipy.cluster.hierarchy as spc
+# import seaborn as sns; sns.set(color_codes=True)
+# from sklearn.linear_model import LogisticRegression
+# import sklearn
+# from pathlib import Path
+# import requests
+# import psutil
+# import random
+# import threading
+# import tracemalloc
+# import itertools
+# import math
+# import warnings
+# import sklearn.metrics as metrics
+# from collections import Counter
+# from collections import defaultdict
+# import scanpy as sc
+# import pandas as pd
+# import pickle as pkl
+# import numpy as np
+# import scipy
+# import matplotlib.pyplot as plt
+# import re
+# import glob
+# import os
+# import sys
+# import gc
+# #from geosketch import gs
+# from numpy import cov
+# import scipy.cluster.hierarchy as spc
+# import seaborn as sns; sns.set(color_codes=True)
+# from sklearn.linear_model import LogisticRegression
+# import sklearn
+# from pathlib import Path
+# import requests
+# import psutil
+# import random
+# import threading
+# import tracemalloc
+# import itertools
+# import math
+# import warnings
+# import sklearn.metrics as metrics
+# import numpy as np
+# from sklearn.metrics import log_loss
+# import mygene
+# import gseapy as gp
+# import mygene
+# import scipy.sparse as sparse
+# from sklearn.metrics.pairwise import cosine_similarity
+# from sklearn.model_selection import cross_val_score
+# from sklearn.model_selection import RepeatedStratifiedKFold
+# from sklearn import metrics
+# import pandas as pd
+# from sklearn.metrics import confusion_matrix
+# import matplotlib.pyplot as plt
+# import anndata
+
+# import numpy as np
+# import pandas as pd
+# # import pymc3 as pm
+# from scipy.sparse import csr_matrix
+# from scipy.stats import entropy
+# from sklearn.metrics import classification_report
+# from sklearn.preprocessing import LabelEncoder
+# import warnings
+
+# from multiprocessing import cpu_count, Pool
+# from tqdm import tqdm
+
+
+# from joblib import Parallel, delayed, cpu_count
+# import scipy.sparse as sp
+# import numpy as np
+# from tqdm import tqdm
+# import gc
+
+# import numpy as np
+# import scipy.sparse as sp
+# from scipy.sparse import coo_matrix
+# import warnings
+# # Utils
+
+# ######################
+# from joblib import Parallel, delayed, cpu_count
+# import scipy.sparse as sp
+# import numpy as np
+# from tqdm import tqdm
+# import gc
+
+# import numpy as np
+# import scipy.sparse as sp
+# from scipy.sparse import coo_matrix
+
+# import numpy as np
+# from scipy.sparse import coo_matrix, csr_matrix
+# from multiprocessing import Pool, cpu_count
+# from functools import partial
+# from tqdm import tqdm  # Import tqdm for progress bars
+
+
 import sys
 import subprocess
-from collections import Counter
-from collections import defaultdict
+from collections import Counter, defaultdict
 import scanpy as sc
 import pandas as pd
 import pickle as pkl
@@ -41,13 +157,10 @@ import matplotlib.pyplot as plt
 import re
 import glob
 import os
-import sys
-#from geosketch import gs
-from numpy import cov
-import scipy.cluster.hierarchy as spc
 import seaborn as sns; sns.set(color_codes=True)
 from sklearn.linear_model import LogisticRegression
 import sklearn
+from sklearn import metrics
 from pathlib import Path
 import requests
 import psutil
@@ -57,74 +170,21 @@ import tracemalloc
 import itertools
 import math
 import warnings
-import sklearn.metrics as metrics
-from collections import Counter
-from collections import defaultdict
-import scanpy as sc
-import pandas as pd
-import pickle as pkl
-import numpy as np
-import scipy
-import matplotlib.pyplot as plt
-import re
-import glob
-import os
-import sys
-import gc
-#from geosketch import gs
-from numpy import cov
+from sklearn.metrics import log_loss, confusion_matrix, classification_report
+from scipy.sparse import csr_matrix, coo_matrix
+from scipy.stats import entropy
 import scipy.cluster.hierarchy as spc
-import seaborn as sns; sns.set(color_codes=True)
-from sklearn.linear_model import LogisticRegression
-import sklearn
-from pathlib import Path
-import requests
-import psutil
-import random
-import threading
-import tracemalloc
-import itertools
-import math
-import warnings
-import sklearn.metrics as metrics
-import numpy as np
-from sklearn.metrics import log_loss
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import cross_val_score, RepeatedStratifiedKFold
 import mygene
 import gseapy as gp
-import mygene
-import scipy.sparse as sparse
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn import metrics
-import pandas as pd
-from sklearn.metrics import confusion_matrix
-import matplotlib.pyplot as plt
 import anndata
-
-import numpy as np
-import pandas as pd
-# import pymc3 as pm
-from scipy.sparse import csr_matrix
-from scipy.stats import entropy
-from sklearn.metrics import classification_report
-from sklearn.preprocessing import LabelEncoder
-import warnings
-
 from multiprocessing import cpu_count, Pool
-from tqdm import tqdm
-
-
-from joblib import Parallel, delayed, cpu_count
-import scipy.sparse as sp
-import numpy as np
-from tqdm import tqdm
+from joblib import Parallel, delayed
+from functools import partial
+from tqdm import tqdm  # Import tqdm for progress bars
 import gc
 
-import numpy as np
-import scipy.sparse as sp
-from scipy.sparse import coo_matrix
-# Utils
 
 def compute_label_log_losses(df, true_label, pred_columns):
     """
@@ -533,16 +593,7 @@ def expand_neighborhoods_chunked_v0_1_0(adata, adata_samp, param_set):
 
 # results = expand_neighborhoods_chunked_corrected(adata, adata_samp, param_set)
 
-######################
-from joblib import Parallel, delayed, cpu_count
-import scipy.sparse as sp
-import numpy as np
-from tqdm import tqdm
-import gc
-
-import numpy as np
-import scipy.sparse as sp
-from scipy.sparse import coo_matrix
+#######################
 
 def apply_adaptive_gaussian_kernel(KNN, anchor_indices, adp_variance=2.0, adp_threshold=0.2,**kwargs):
     """
@@ -592,14 +643,14 @@ def apply_adaptive_gaussian_kernel(KNN, anchor_indices, adp_variance=2.0, adp_th
     return KNN
 
 
-def process_chunk(start_idx, end_idx, updates, KNN_main_format):
+def v0_2_1_process_chunk(start_idx, end_idx, updates, KNN_main_format):
     KNN_main_local = KNN_main_format.copy()
     for idx in range(start_idx, end_idx):
         original_idx, update = updates[idx]
         KNN_main_local[original_idx, :] = update
     return KNN_main_local
 
-def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=10000, n_jobs=4):
+def v0_2_1_update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=10000, n_jobs=4):
     """
     Updates the connectivity matrix in chunks for memory efficiency with a progress bar.
     
@@ -664,6 +715,79 @@ def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, chunk_size=1000
 
     return KNN_main_sym
 
+def process_chunk(compiled_updates, chunk, force_symmetry, KNN_main_shape):
+    """
+    Processes a chunk of updates and constructs a COO matrix representing the updates for this chunk.
+
+    Parameters:
+    - compiled_updates (dict): A dictionary containing the latest updates for each unique index.
+    - chunk (list): A list of original indices that represent a subset of updates to be processed.
+    - force_symmetry (bool): Whether to force symmetry in the updates.
+    - KNN_main_shape (tuple): The shape of the main KNN matrix.
+
+    Returns:
+    - coo_matrix: A COO matrix representing the updates for the provided chunk.
+    """
+    row_updates, col_updates, data_updates = [], [], []
+    for original_idx in chunk:
+        update_coo = compiled_updates[original_idx]
+        row_updates.extend([original_idx] * len(update_coo.data))
+        col_updates.extend(update_coo.col)
+        data_updates.extend(update_coo.data)
+        if force_symmetry:
+            row_updates.extend(update_coo.col)
+            col_updates.extend([original_idx] * len(update_coo.data))
+            data_updates.extend(update_coo.data)
+    return coo_matrix((data_updates, (row_updates, col_updates)), shape=KNN_main_shape)
+
+def update_connectivity_matrix_in_chunks(KNN_main, updates_dict, n_jobs=4, force_symmetry=False):
+    """
+    Compiles updates from an updates dictionary and applies them to the KNN_main CSR matrix. Supports both
+    parallel and non-parallel execution modes and can optionally force symmetry in the updates.
+
+    Parameters:
+    - KNN_main (csr_matrix): The main KNN matrix to which updates will be applied.
+    - updates_dict (dict): A dictionary containing updates, structured as {epoch: (indices, KNN_hop)}.
+    - n_jobs (int): The number of parallel jobs to use for processing updates.
+    - force_symmetry (bool): If True, forces symmetry in the updates.
+
+    Returns:
+    - csr_matrix: The updated KNN_main matrix.
+    """
+    compiled_updates = {}
+    for epoch, (indices, KNN_hop) in sorted(updates_dict.items(), reverse=True):
+        for idx, original_idx in enumerate(indices):
+            if original_idx not in compiled_updates:
+                compiled_updates[original_idx] = KNN_hop[idx, :].tocoo()
+    
+    if n_jobs <= 1:
+        print('Non-parallel update module chosen')
+        row_updates, col_updates, data_updates = [], [], []
+        pbar = tqdm(total=len(compiled_updates), desc="Processing updates")
+        for original_idx, update_coo in compiled_updates.items():
+            row_updates.extend([original_idx] * len(update_coo.data))
+            col_updates.extend(update_coo.col)
+            data_updates.extend(update_coo.data)
+            if force_symmetry:
+                row_updates.extend(update_coo.col)
+                col_updates.extend([original_idx] * len(update_coo.data))
+                data_updates.extend(update_coo.data)
+            pbar.update(1)
+        pbar.close()
+        updates_coo = coo_matrix((data_updates, (row_updates, col_updates)), shape=KNN_main.shape)
+    else:
+        print('Parallel update module available, proceeding')
+        max_cores = cpu_count()
+        n_jobs = min(n_jobs, max_cores)
+        print(f"{max_cores} compute cores available, distributing {n_jobs} jobs")
+        chunks = np.array_split(list(compiled_updates.keys()), n_jobs)
+        with Pool(processes=n_jobs) as pool:
+            update_results = list(tqdm(pool.imap(partial(process_chunk, compiled_updates, force_symmetry=force_symmetry, KNN_main_shape=KNN_main.shape), chunks), total=len(chunks), desc="Processing chunks in parallel"))
+        updates_coo = sum(update_results)
+    
+    KNN_main += updates_coo.tocsr()
+    return KNN_main
+
 def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = False, **kwargs):
     """
     Expands the neighborhoods in the connectivity matrix of anndata object 'adata'
@@ -701,6 +825,11 @@ def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = Fa
     epoch = 0
     hop_v_indices = [1]  # Initialize with a non-empty list to start the loop.
     samp_indices = np.where(adata.obs.index.isin(adata_samp.obs.index))[0]
+    
+    if kwargs['alpha'] == 0:
+        warnings.warn("Alpha value set to <1"); print("Alpha is set to 0, this means that no expansion towards anchor states will occur, we will default this value to 1")
+        kwargs['alpha'] = 1
+
 
     while epoch <= kwargs['epoch'] and len(hop_v_indices) > 0:
         print(f"Epoch: {epoch}")
@@ -711,7 +840,7 @@ def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = Fa
 
         # Find indices not connected to any sampled node
         if epoch == 0:
-            indices = np.where(KNN_tmp.sum(axis=0) <= kwargs['alpha'])[1]
+            indices = np.where(KNN_tmp.sum(axis=0) < kwargs['alpha'])[1] # axis 0 here
         else:
             indices = hop_v_indices
 
@@ -722,9 +851,10 @@ def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = Fa
         KNN_hop_tmp = KNN_hop[:, samp_indices].copy()
         KNN_hop_tmp.data = np.where(KNN_hop_tmp.data > 0, 1, 0)
         
-        hop_v_indices = np.where(KNN_hop_tmp.sum(axis=1) <= kwargs['alpha'])[0]
+        hop_v_indices = np.where(KNN_hop_tmp.sum(axis=1) < kwargs['alpha'])[0] # axis 1 here
         updates_dict[epoch] = (indices, KNN_hop)
-
+        
+        print("End of epoch {} Unconnected node count is: {}".format(epoch,len(hop_v_indices)))
         epoch += 1
 
     KNN_updated = update_connectivity_matrix_in_chunks(KNN_main, updates_dict, n_jobs=n_jobs)
@@ -732,7 +862,7 @@ def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = Fa
     if adaptive_prune == True:
         KNN_updated = apply_adaptive_gaussian_kernel(KNN_updated, np.where(adata.obs.index.isin(adata_samp.obs.index))[0], adp_variance=1.0, adp_threshold=0.1,**kwargs)
     results_dict = {"main_matrix": KNN_updated, "updates": updates_dict}
-    sp_v_indices = np.where(results_dict['main_matrix'].sum(axis=0) <= kwargs['alpha'])[1]
+    sp_v_indices = np.where(results_dict['main_matrix'].sum(axis=0) < kwargs['alpha'])[1]
     print("Remaining unconnected node count is: {}".format(len(sp_v_indices)))
 
     return results_dict
