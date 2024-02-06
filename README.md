@@ -25,6 +25,10 @@ The SGD-PGR method allows for online updates of the aggregated representations o
 <p>Issac Goh, Newcastle University; Sanger institute (https://haniffalab.com/team/issac-goh.html) <br>
 Antony Rose, Newcastle University; Sanger institute (https://haniffalab.com/team/antony-rose.html)</p>
 
+## Team responsibilities
+Issac Goh is writing all analytical framework modules
+Antony Rose is writing IO modules and the user interface classes which will improve quality of life
+
 ### Contact
 Issac Goh, (ig7@sanger.ac.uk)
 
