@@ -180,6 +180,7 @@ import mygene
 import gseapy as gp
 import anndata
 from multiprocessing import cpu_count, Pool
+# from joblib import Parallel, delayed, cpu_count
 from joblib import Parallel, delayed
 from functools import partial
 from tqdm import tqdm  # Import tqdm for progress bars
@@ -827,7 +828,7 @@ def expand_neighborhoods_chunked(adata, adata_samp,n_jobs=1, adaptive_prune = Fa
         locals().update(kwargs)
     kwargs.update(locals())
     
-    KNN_main = adata.obsp[adata.uns[knn_key]['connectivities_key']]
+    KNN_main = adata.obsp[adata.uns[kwargs['knn_key']]['connectivities_key']]
     updates_dict = {}  # Store the updates for each epoch
     results_dict = {}  # Final results dictionary
     
@@ -919,7 +920,7 @@ def pagerank(M, num_iterations=100, d=0.85, tolerance=1e-6):
     return v, l2_dic
 
 
-def SGDpagerank_v0_1_0(M, init_vect=None, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, 
+def SGDpagerank_v0_1_0(M, init_vect=None, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-5, d=0.85, 
              full_batch_update_iters=100, dip_window=5, plateau_iterations=5, sampling_method='probability_based', **kwargs):
     """
     Calculate the PageRank of each node in a graph using a mini-batch SGD approach.
@@ -1097,7 +1098,7 @@ def SGDpagerank_v0_1_0(M, init_vect=None, num_iterations=1000, mini_batch_size=1
     return v, l2_dic
     
 
-def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, 
+def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, ignore_rate_iter=None, tolerance=1e-5, d=0.85, 
              full_batch_update_iters=100, dip_window=5, plateau_iterations=5, sampling_method='probability_based',init_vect=None, **kwargs):
     """
     Calculate the PageRank of each node in a graph using a mini-batch SGD approach.
@@ -1152,10 +1153,19 @@ def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_r
 
     # Initialize an array to keep track of node visit counts (for probability-based sampling)
     visited_counts = np.zeros(N)
+    
+    # Set ignore_rate_iter to num_iterations/10 if it's None, otherwise use the provided value
+    ignore_rate_iter = ignore_rate_iter if ignore_rate_iter is not None else num_iterations // 10
+    print("ignore_rate_iter has defaulted to {}".format(ignore_rate_iter))
 
     for iter_ in range(num_iterations):
+        
+        # add a parameter to ignore learn rate for first n iters
+        if iter_< ignore_rate_iter:
+            learning_rate = 1
+        elif iter_>= ignore_rate_iter:
         # Decay the learning rate to ensure convergence
-        learning_rate = initial_learning_rate / ((1 + iter_)/10)
+            learning_rate = initial_learning_rate / ((1 + (iter_-ignore_rate_iter))/100)
         
         # Probability-based sampling
         if sampling_method == 'probability_based':
@@ -1182,14 +1192,18 @@ def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_r
         v_mini_batch = v[mini_batch_indices]
         
         # Store the current PageRank values for convergence checks
-        last_v = v_mini_batch
+        last_v = v[mini_batch_indices].copy()
         
         # Update the PageRank values using the mini-batch
-        v_mini_batch = d * (learning_rate * M_mini_batch @ v) + ((1 - d) / N)
-        v[mini_batch_indices] = v_mini_batch
+        v_mini_batch = d * (learning_rate * M_mini_batch @ v)
+        v[mini_batch_indices] += v_mini_batch
+        
+        # Normalize the full PageRank vector
+        v += ((1 - d) / N) # add the teleportaion probability
+        v = v / np.linalg.norm(v, 1)
         
         # Compute and store the L2 norm of the difference between the current and last PageRank values
-        l2_norm = np.linalg.norm(v_mini_batch - last_v)
+        l2_norm = np.linalg.norm(v[mini_batch_indices] - last_v)
         l2_dic[iter_] = l2_norm
         
         # Compute smoothed L2 norms for dip detection
@@ -1273,7 +1287,6 @@ def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_r
         print("Erratic behavious post this second dip should trend downwards. This shows that dispite having visited all nodes and thus oscillating, we still see gradual model improvement")
     
     return v, l2_dic
-
 
 def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='laplacian',pl_label_entropy=False,resample_clones=False,n_hops=2, **kwargs):
     # Unpack kwargs

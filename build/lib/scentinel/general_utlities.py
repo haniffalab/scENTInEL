@@ -370,7 +370,7 @@ def aggregate_data_v0_1_0(adata, adata_samp, connectivity_matrix, method='local'
         elif method == 'global':
             factors = compute_global_scaling_factors(expression_matrix_chunk)
         elif method == 'sum':
-            aggregated_data_chunk = eighborhoods_matrix_chunk.dot(expression_matrix_chunk)
+            aggregated_data_chunk = neighborhoods_matrix_chunk.dot(expression_matrix_chunk)
         else:
             factors = np.ones(expression_matrix_chunk.shape[0])
             
