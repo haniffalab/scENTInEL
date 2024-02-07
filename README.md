@@ -25,14 +25,30 @@ The SGD-PGR method allows for online updates of the aggregated representations o
 <p>Issac Goh, Newcastle University; Sanger institute (https://haniffalab.com/team/issac-goh.html) <br>
 Antony Rose, Newcastle University; Sanger institute (https://haniffalab.com/team/antony-rose.html)</p>
 
+## Team responsibilities
+- Issac Goh is writing all analytical framework modules
+- Antony Rose is writing IO modules and the user interface classes which will improve quality of life
+
 ### Contact
 Issac Goh, (ig7@sanger.ac.uk)
 
 ## Built With
-[Scanpy](https://scanpy.readthedocs.io/en/stable/)   
-...
-...
-...
+- [Scanpy](https://scanpy.readthedocs.io/en/stable/) - An analysis environment for single-cell genomics.
+- [Pandas](https://pandas.pydata.org/) - A fast, powerful, flexible and easy to use open source data analysis and manipulation tool.
+- [NumPy](https://numpy.org/) - The fundamental package for scientific computing with Python.
+- [SciPy](https://www.scipy.org/) - Open-source software for mathematics, science, and engineering.
+- [Matplotlib](https://matplotlib.org/) - A comprehensive library for creating static, animated, and interactive visualizations in Python.
+- [Seaborn](https://seaborn.pydata.org/) - A Python visualization library based on matplotlib that provides a high-level interface for drawing attractive statistical graphics.
+- [scikit-learn](https://scikit-learn.org/stable/) - Simple and efficient tools for predictive data analysis.
+- [MyGene](https://pypi.org/project/mygene/) - A Python wrapper to access MyGene.info services.
+- [GSEApy](https://gseapy.readthedocs.io/en/latest/) - Gene Set Enrichment Analysis in Python.
+- [Anndata](https://anndata.readthedocs.io/en/latest/) - An annotated data structure for matrices where rows are observations (e.g., cells) and columns are variables (e.g., genes).
+- [PyMC3](https://docs.pymc.io/) - A Python package for Bayesian statistical modeling and probabilistic machine learning.
+- [Joblib](https://joblib.readthedocs.io/en/latest/) - A set of tools to provide lightweight pipelining in Python.
+- [tqdm](https://tqdm.github.io/) - A fast, extensible progress bar for Python and CLI.
+- [Requests](https://requests.readthedocs.io/en/master/) - An elegant and simple HTTP library for Python.
+- [Psutil](https://psutil.readthedocs.io/en/latest/) - A cross-platform library for retrieving information on running processes and system utilization in Python.
+
 
 ## Getting Started
 This package takes as input:
