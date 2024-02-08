@@ -306,5 +306,19 @@ For the two stage monte-calro approach, bootstrap sampling is performed 1000 tim
 By integrating the Laplacian matrix approach with PageRank, we aim to identify influential nodes in the graph, focusing on both their local and global importance.
 
 
+### Output examples
+- SGD_pagerank L2 decay over iterations with mini-batch learning
+![Alt text](/resources/SGD_L2_decay.png?raw=true "SGD_L2_decay")
+
+![Alt text](/resources/distribution_attention_scores.png?raw=true "SGD_L2_decay")
+
+![Alt text](/resources/Learnt_covariance_1mil.png?raw=true "SGD_L2_decay")
+
+![Alt text](/resources/weights_1mil.png?raw=true "SGD_L2_decay")
+
+![Alt text](/resources/Bootstrapcontrol_1mil.png?raw=true "SGD_L2_decay")
+
+![Alt text](/resources/resource_usage_SGDPGR_1mil.png?raw=true "SGD_L2_decay")
+
 
 
