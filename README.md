@@ -314,11 +314,33 @@ By integrating the Laplacian matrix approach with PageRank, we aim to identify i
 
 ![Alt text](/resources/Learnt_covariance_1mil.png?raw=true "SGD_L2_decay")
 
+- **Label Confidence and recovery testing**: By learning the impact of labels on toplogical features, we are able to estimate the confidence of a label significantly impacting the latent graph topology.
 ![Alt text](/resources/weights_1mil.png?raw=true "SGD_L2_decay")
 
+- **Scentinel SGD_PGR with 2 stage non-stratified label recovery**: Within a search space of 1million cells across an integrated atlas, Scentinel recovers all states.
+![Alt text](/resources/SGD_pgr_output.png?raw=true "SGD_L2_decay")
+
+- **Stratified and non-stratified bootstrap sampling controls**:
 ![Alt text](/resources/Bootstrapcontrol_1mil.png?raw=true "SGD_L2_decay")
 
 ![Alt text](/resources/resource_usage_SGDPGR_1mil.png?raw=true "SGD_L2_decay")
+
+
+- **Scentinel can be applied in an Inductive query mode**: Scentinel provides an indfuctive query mode (via scCartographer) which provides a framework for training Bayesian optimised label transfer models (Elasticnet) on the joint-latent representation of anchor states with integrated data for efficient mapping, harmonisation, and cross atlas specificty scoring of atlas data. scCartographer also allows user to study relative feature impact on modelling decisions and output probability 
+
+![Alt text](/resources/cross_atlas_probabillistic_projection.png?raw=true "cross_atlas mapping and probabillistic projection")
+
+- **Scentinel Transductive query mode**: Training can be performed relative to any subset of a latent expression in any modality space, this can be used for fast query and mapping
+![Alt text](/resources/general_model_self_projection.png?raw=true "single tissue mapping and probabillistic projection")
+
+- Scentinel additionally provides modules to study relative feature impacts and associated gene expression pathways/modules on specific model decisions, allowing users to assess model relevance
+![Alt text](/resources/Kera_positive_features.png?raw=true "Positive features")
+![Alt text](/resources/Kera_negative_features.png?raw=true "Negative features")
+
+
+- Scentinel provides modules to cluster and study predicted expression programs between shared/differential states based on weighted semantic similarity and shared genes within mixtures of any defined database (e.g GOBP, KEGG)
+![Alt text](/resources/cluster_expression_prorgams_1.png?raw=true "Markov clusters semantic programs 1")
+![Alt text](/resources/cluster_expression_prorgams_2.png?raw=true "Markov clusters semantic programs 1")
 
 
 
