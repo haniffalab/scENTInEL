@@ -325,6 +325,16 @@ By integrating the Laplacian matrix approach with PageRank, we aim to identify i
 
 ![Alt text](/resources/resource_usage_SGDPGR_1mil.png?raw=true "SGD_L2_decay")
 
+- **Scentinel Pesudocell landscsapes**:
+- UMAP created with the Scentinel psuedocell aggregated exrpession data
+![Alt text](/resources/pseudo_umap.png?raw=true "pseudo_umap.png")
+
+- UMAP showing the mean SCVI UAMP coordinates of the SCENTINEL anchor states
+![Alt text](/resources/mean_scvi_umap.png?raw=true "mean_scvi_umap.png")
+   
+- Control UMAP showing the original positions of all labels
+![Alt text](/resources/all_cell_umap.png?raw=true "all_cell_umap")
+
 
 - **Scentinel can be applied in an Inductive query mode**: Scentinel provides an indfuctive query mode (via scCartographer) which provides a framework for training Bayesian optimised label transfer models (Elasticnet) on the joint-latent representation of anchor states with integrated data for efficient mapping, harmonisation, and cross atlas specificty scoring of atlas data. scCartographer also allows user to study relative feature impact on modelling decisions and output probability 
 
