@@ -920,7 +920,7 @@ def pagerank(M, num_iterations=100, d=0.85, tolerance=1e-6):
     return v, l2_dic
 
 
-def SGDpagerank_v0_1_0(M, init_vect=None, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, 
+def SGDpagerank_v0_1_0(M, init_vect=None, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-5, d=0.85, 
              full_batch_update_iters=100, dip_window=5, plateau_iterations=5, sampling_method='probability_based', **kwargs):
     """
     Calculate the PageRank of each node in a graph using a mini-batch SGD approach.
@@ -1098,8 +1098,8 @@ def SGDpagerank_v0_1_0(M, init_vect=None, num_iterations=1000, mini_batch_size=1
     return v, l2_dic
     
 
-def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, ignore_rate_iter=None, tolerance=1e-6, d=0.85, 
-             full_batch_update_iters=100, dip_window=5, plateau_iterations=5, sampling_method='probability_based',init_vect=None, **kwargs):
+def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_rate=0.85, ignore_rate_iter=None, tolerance=1e-5, d=0.85, 
+             full_batch_update_iters=100, dip_window=5, plateau_iterations=5, sampling_method='probability_based',init_vect=None,smooth_updates=False, **kwargs):
     """
     Calculate the PageRank of each node in a graph using a mini-batch SGD approach.
 
@@ -1114,10 +1114,12 @@ def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_r
     - dip_window (int): Window size for smoothing L2 norms.
     - plateau_iterations (int): Number of consecutive iterations where the gradient should remain stable for early stopping.
     - sampling_method (str): Method to sample nodes ('probability_based' or 'cyclic').
+    - smooth_updates (bool): Method to apply updates, incrementally or direct mini_batch updates.
 
     Returns:
     - numpy.ndarray: The PageRank score for each node in the graph.
     - dict: L2 norms for each iteration.
+    
     """
     # Unpack kwargs
     if kwargs:
@@ -1189,14 +1191,18 @@ def SGDpagerank(M, num_iterations=1000, mini_batch_size=1000, initial_learning_r
         
         # Extract the mini-batch from the matrix and the PageRank vector
         M_mini_batch = M[mini_batch_indices, :]
-        v_mini_batch = v[mini_batch_indices]
+        #v_mini_batch = v[mini_batch_indices]
         
         # Store the current PageRank values for convergence checks
         last_v = v[mini_batch_indices].copy()
         
         # Update the PageRank values using the mini-batch
         v_mini_batch = d * (learning_rate * M_mini_batch @ v)
-        v[mini_batch_indices] += v_mini_batch
+        
+        if smooth_updates == True:
+            v[mini_batch_indices] += v_mini_batch
+        else:
+            v[mini_batch_indices] = v_mini_batch
         
         # Normalize the full PageRank vector
         v += ((1 - d) / N) # add the teleportaion probability
