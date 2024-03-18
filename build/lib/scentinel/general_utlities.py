@@ -99,6 +99,7 @@ from sklearn import metrics
 import pandas as pd
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
+import anndata
 
 import numpy as np
 import pandas as pd
@@ -251,9 +252,17 @@ def compute_global_scaling_factors(data):
     avg_counts = data.sum(axis=1).mean()
     return (data.sum(axis=1) / avg_counts).A1
 
-def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='local'):
+def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='local',**kwargs):
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+    
     indices = adata.obs.index.isin(adata_samp.obs.index).nonzero()[0]
     neighborhoods_matrix = connectivity_matrix[indices]
+    
+    
     try:
         adata.to_memory()
     except:
@@ -264,6 +273,10 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
     else:
         expression_matrix = adata.X
 
+    # Store original counts in dataframe
+    orig_obs_counts = pd.DataFrame(index = adata.obs_names, columns=['n_counts'])
+    orig_obs_counts['n_counts'] = expression_matrix.sum(axis=1).A1
+    
     # Apply scaling factors to individual cell expression profiles
     if method == 'local':
         factors = compute_local_scaling_factors(expression_matrix, neighborhoods_matrix)
@@ -279,9 +292,22 @@ def aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method='l
     
     obs = adata.obs.iloc[indices]
     pseudobulk_adata = sc.AnnData(aggregated_data, obs=obs, var=adata.var)
+    
+    # Store original data neighbourhood identity
+    pseudobulk_adata.uns['orig_data_connectivity_information'] = anndata.AnnData(
+        X = connectivity_matrix, #adata.obsp[adata.uns[knn_key]['connectivities_key']],
+        obs = pd.DataFrame(index = adata.obs_names),
+        var = pd.DataFrame(index = adata.obs_names),
+    )
+    # Store original counts per cell
+    pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
+    
+    # Store connectivity binary assignment 
+    #pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp[adata.uns[knn_key]['connectivities_key']][[adata.obs_names.get_loc(x) for x in pseudobulk_adata.obs_names], :]) > 0).astype(int)
+    
     return pseudobulk_adata
 
-def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk_size=100):
+def aggregate_data_v0_1_0(adata, adata_samp, connectivity_matrix, method='local', chunk_size=100):
     """
     Aggregate data in chunks for improved memory efficiency.
     
@@ -302,6 +328,104 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
         # Use the regular approach if not in backed mode
         print("Data is small enough to proceed with direct dot products")
         return aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method)
+    if adata_samp.isbacked:
+        adata_samp = adata_samp.to_memory()
+    
+    print("Data is too large to process in a single view, processing in chunks ")
+    # Determine the number of chunks to process
+    n_samples = adata_samp.shape[0]
+    n_chunks = (n_samples + chunk_size - 1) // chunk_size  # Ceiling division
+    aggregated_data_dict = {}
+    obs_dict = {}
+    
+    orig_obs_counts = pd.DataFrame(index = adata.obs_names, columns=['n_counts'])
+    
+    # Loop through chunks with a progress bar
+    for chunk_idx in tqdm(range(n_chunks), desc="Processing chunks", unit="chunk"):
+        start_idx = chunk_idx * chunk_size
+        end_idx = min(start_idx + chunk_size, n_samples)
+        current_chunk = adata_samp[start_idx:end_idx]
+        obs_dict[chunk_idx] = adata_samp.obs.iloc[start_idx:end_idx]
+
+        # Get indices of cells in the current chunk
+        #indices = adata.obs.index.isin(current_chunk.obs.index).nonzero()[0]
+        indices = adata.obs.index.get_indexer(current_chunk.obs.index)
+        # Extract the corresponding neighborhood matrix
+        neighborhoods_matrix_chunk = connectivity_matrix[indices]
+        # Identify unique neighbor indices for cells in this chunk
+        neighbor_indices = np.unique(neighborhoods_matrix_chunk.nonzero()[1])
+
+        # Adjust neighborhood matrix to only cover relevant neighbors
+        neighborhoods_matrix_chunk = connectivity_matrix[indices, :][:, neighbor_indices]
+
+        # Extract the expression matrix for these neighbors
+        expression_matrix_chunk = adata[neighbor_indices].to_memory().X
+        
+        # Store original counts in dataframe
+        orig_obs_counts.loc[adata[neighbor_indices].obs.index, 'n_counts'] = expression_matrix_chunk.sum(axis=1).A1
+        
+        # Calculate scaling factors based on the specified method
+        if method == 'local':
+            factors = compute_local_scaling_factors(expression_matrix_chunk, neighborhoods_matrix_chunk)
+        elif method == 'global':
+            factors = compute_global_scaling_factors(expression_matrix_chunk)
+        elif method == 'sum':
+            aggregated_data_chunk = neighborhoods_matrix_chunk.dot(expression_matrix_chunk)
+        else:
+            factors = np.ones(expression_matrix_chunk.shape[0])
+            
+        if method != 'sum':
+            # Normalize data using scaling factors
+            normalized_data_chunk = expression_matrix_chunk.multiply(np.reciprocal(factors)[:, np.newaxis])
+
+            # Aggregate the normalized data using the neighborhood matrix
+            aggregated_data_chunk = neighborhoods_matrix_chunk.dot(normalized_data_chunk)
+
+        # Store in dictionary with chunk_idx as the key
+        aggregated_data_dict[chunk_idx] = aggregated_data_chunk
+            
+
+        # Delete variables that are not needed to free up memory
+        del current_chunk
+        del neighborhoods_matrix_chunk
+        del expression_matrix_chunk
+        del aggregated_data_chunk
+        # Suggest to the garbage collector to cleanup
+        gc.collect()
+
+    # Combine results from all chunks using ordered indices
+    ordered_chunks = sorted(aggregated_data_dict.keys())
+    aggregated_data_combined = scipy.sparse.vstack([aggregated_data_dict[idx] for idx in ordered_chunks])
+    aggregated_obs = pd.concat([obs_dict[idx] for idx in ordered_chunks], axis=0)
+    # Return as AnnData object
+    return sc.AnnData(aggregated_data_combined, obs=aggregated_obs, var=adata.var)
+
+def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk_size=100,**kwargs):
+    """
+    Aggregate data in chunks for improved memory efficiency.
+    
+    Parameters:
+    - adata: The main AnnData object containing expression data
+    - adata_samp: Subset of AnnData for which pseudocells are created
+    - connectivity_matrix: Matrix indicating cell connectivity (e.g., from kNN graph)
+    - method: Method for scaling ('local', 'global', or 'none')
+    - chunk_size: Number of samples to process in each chunk
+    
+    Returns:
+    - AnnData object with aggregated data
+    """
+    # Unpack kwargs
+    if kwargs:
+        for key, value in kwargs.items():
+            globals()[key] = value
+        kwargs.update(locals())
+
+    # Check if in backed mode
+    is_backed = adata.isbacked
+    if not is_backed and len(adata)<1000000:
+        # Use the regular approach if not in backed mode
+        print("Data is small enough to proceed with direct dot products")
+        return aggregate_data_single_load(adata, adata_samp, connectivity_matrix, method, **kwargs)
     if adata_samp.isbacked:
         adata_samp = adata_samp.to_memory()
     
@@ -338,24 +462,26 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
             factors = compute_local_scaling_factors(expression_matrix_chunk, neighborhoods_matrix_chunk)
         elif method == 'global':
             factors = compute_global_scaling_factors(expression_matrix_chunk)
+        elif method == 'sum':
+            aggregated_data_chunk = neighborhoods_matrix_chunk.dot(expression_matrix_chunk)
         else:
             factors = np.ones(expression_matrix_chunk.shape[0])
+            
+        if method != 'sum':
+            # Normalize data using scaling factors
+            normalized_data_chunk = expression_matrix_chunk.multiply(np.reciprocal(factors)[:, np.newaxis])
 
-        # Normalize data using scaling factors
-        normalized_data_chunk = expression_matrix_chunk.multiply(np.reciprocal(factors)[:, np.newaxis])
-
-        # Aggregate the normalized data using the neighborhood matrix
-        aggregated_data_chunk = neighborhoods_matrix_chunk.dot(normalized_data_chunk)
+            # Aggregate the normalized data using the neighborhood matrix
+            aggregated_data_chunk = neighborhoods_matrix_chunk.dot(normalized_data_chunk)
 
         # Store in dictionary with chunk_idx as the key
         aggregated_data_dict[chunk_idx] = aggregated_data_chunk
+            
 
         # Delete variables that are not needed to free up memory
         del current_chunk
         del neighborhoods_matrix_chunk
         del expression_matrix_chunk
-        del factors
-        del normalized_data_chunk
         del aggregated_data_chunk
         # Suggest to the garbage collector to cleanup
         gc.collect()
@@ -364,5 +490,120 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
     ordered_chunks = sorted(aggregated_data_dict.keys())
     aggregated_data_combined = scipy.sparse.vstack([aggregated_data_dict[idx] for idx in ordered_chunks])
     aggregated_obs = pd.concat([obs_dict[idx] for idx in ordered_chunks], axis=0)
-    # Return as AnnData object
-    return sc.AnnData(aggregated_data_combined, obs=aggregated_obs, var=adata.var)
+    
+    # Create aggregated AnnData object
+    pseudobulk_adata = sc.AnnData(aggregated_data_combined, obs=aggregated_obs, var=adata.var)
+    
+    # Store original data neighbourhood identity
+    pseudobulk_adata.uns['orig_data_connectivity_information'] = anndata.AnnData(
+        X = connectivity_matrix,#adata.obsp[adata.uns[knn_key]['connectivities_key']],
+        obs = pd.DataFrame(index = adata.obs_names),
+        var = pd.DataFrame(index = adata.obs_names),
+    )
+#     # Store original counts per cell
+#     pseudobulk_adata.obs['orig_counts_per_cell'] = orig_obs_counts
+    
+    # Store connectivity binary assignment 
+    #pseudobulk_adata.uns['orig_data_connectivity_information'].uns['neighbourhood_identity'] = ((adata.obsp["connectivities"][[adata.obs_names.get_loc(x) for x in pseudo_bulk_data.obs_names], :]) > 0).astype(int)
+
+    return pseudobulk_adata
+
+
+
+import os
+import psutil
+import time
+from scipy.interpolate import UnivariateSpline
+from queue import Queue, Empty
+
+class ResourceMonitor:
+    def __init__(self):
+        self.control_queue = Queue()
+        self.sys_memory_data = []
+        self.vms_memory_data = []
+        self.rss_memory_data = []
+        self.cpu_data = []
+        self.time_data = []
+        self.thread = None
+
+    def monitor_resources(self, interval=1):
+        """Monitor system resources at intervals."""
+        pid = os.getpid()
+        current_process = psutil.Process(pid)
+        while True:
+            try:
+                message = self.control_queue.get(timeout=interval)
+                if message == "stop":
+                    break
+            except Empty:
+                pass
+            memory_usage = current_process.memory_info()
+            self.sys_memory_data.append(psutil.virtual_memory().used / (1024 ** 2))
+            self.rss_memory_data.append(memory_usage.rss / (1024 ** 2))
+            self.vms_memory_data.append(memory_usage.rss / (1024 ** 2))
+            self.cpu_data.append(psutil.cpu_percent(interval=None))
+            self.time_data.append(time.time())
+
+    def start_monitoring(self, interval=1):
+        """Start the monitoring in a separate thread."""
+        self.thread = threading.Thread(target=self.monitor_resources, args=(interval,))
+        self.thread.start()
+
+    def stop_monitoring(self):
+        """Stop the monitoring."""
+        self.control_queue.put("stop")
+        if self.thread:
+            self.thread.join()
+
+def plot_resources(monitor,mem_key = 'rss_memory_data',cpu_key = 'cpu_data'):
+    monitor.memory_data = getattr(monitor,mem_key)
+    monitor.cpu_data = getattr(monitor,cpu_key)
+    
+    """Plot the collected resource data."""
+    plt.figure(figsize=(12, 10))
+    
+    # Memory Usage Over Time
+    ax1 = plt.subplot(2, 2, 1)
+    ax1.plot(monitor.time_data, monitor.memory_data, '-o', color="blue", label="Memory Usage")
+    ax1.fill_between(monitor.time_data, 0, monitor.memory_data, color="blue", alpha=0.3)
+    ax1.set_ylim(min(monitor.memory_data) - 0.1 * min(monitor.memory_data), max(monitor.memory_data) + 0.1 * max(monitor.memory_data))
+    
+    # Add smoothed spline for memory data
+    spl_memory = UnivariateSpline(monitor.time_data, monitor.memory_data, s=100)
+    ax1.plot(monitor.time_data, spl_memory(monitor.time_data), 'k-', linewidth=2, label="Smoothed Memory Usage")
+    
+    ax1.set_title("{} Usage Over Time".format(mem_key))
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Memory (MB)")
+    ax1.legend()
+    
+    # CPU Usage Over Time
+    ax2 = plt.subplot(2, 2, 2)
+    ax2.plot(monitor.time_data, monitor.cpu_data, '-o', color="red", label="CPU Usage")
+    ax2.fill_between(monitor.time_data, 0, monitor.cpu_data, color="red", alpha=0.3)
+    ax2.set_ylim(min(monitor.cpu_data) - 5, max(monitor.cpu_data) + 5)  # giving a buffer of 5% for CPU
+    # Add smoothed spline for CPU data
+    spl_cpu = UnivariateSpline(monitor.time_data, monitor.cpu_data, s=10)
+    ax2.plot(monitor.time_data, spl_cpu(monitor.time_data), 'k-', linewidth=2, label="Smoothed CPU Usage")
+    
+    ax2.set_title("{} Usage Over Time".format(cpu_key))
+    ax2.set_xlabel("Time (s)")
+    ax2.set_ylabel("CPU (%)")
+    ax2.legend()
+    
+    # Histogram for Memory Usage
+    ax3 = plt.subplot(2, 2, 3)
+    ax3.hist(monitor.memory_data, bins=30, color="blue", alpha=0.7)
+    ax3.set_title("Histogram of {} Usage".format(mem_key))
+    ax3.set_xlabel("Memory (MB)")
+    ax3.set_ylabel("Frequency")
+    
+    # Histogram for CPU Usage
+    ax4 = plt.subplot(2, 2, 4)
+    ax4.hist(monitor.cpu_data, bins=30, color="red", alpha=0.7)
+    ax4.set_title("Histogram of {} Usage".format(cpu_key))
+    ax4.set_xlabel("CPU (%)")
+    ax4.set_ylabel("Frequency")
+    
+    plt.tight_layout()
+    plt.show()

@@ -7,7 +7,7 @@ with open(os.devnull, 'w') as nullfile:
     with contextlib.redirect_stderr(nullfile):
         setup(
             name="scentinel",
-            version="0.1.0",
+            version="0.2.1",
             packages=find_packages(),
             install_requires=[
                 "scanpy==1.9.3",

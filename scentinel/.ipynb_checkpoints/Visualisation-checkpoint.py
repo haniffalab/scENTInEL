@@ -721,3 +721,106 @@ def analyze_sampling_distribution(pre_sample_scores, post_sample_scores):
     plt.tight_layout()
     plt.subplots_adjust(top=0.92)
     plt.show()
+
+def v_0_1_0_plot_grouped_distributions(df, plot_vars, grouping):
+    # Initialize the figure
+    fig_width = 20
+    fig, axs = plt.subplots(len(plot_vars), 1, figsize=(fig_width, 5 * len(plot_vars)))
+    
+    # Make sure axs is always a list, even if plot_vars has only one item
+    if len(plot_vars) == 1:
+        axs = [axs]
+    
+    for idx, var in enumerate(plot_vars):
+        sns.barplot(x=df.index, y=df[var], ax=axs[idx], color='blue')
+        axs[idx].set_title(f'Distribution of {var} by {grouping}')
+        axs[idx].set_xlabel(grouping)
+        axs[idx].set_ylabel("log " + var)
+        axs[idx].set_yscale("log")  # Set y-axis to log scale
+        plt.setp(axs[idx].xaxis.get_majorticklabels(), rotation=90)
+    
+    plt.tight_layout()
+    plt.show()
+    
+def plot_grouped_distributions(df, plot_vars, grouping):
+    # Initialize the figure
+    fig_width = 20
+    fig, axs = plt.subplots(len(plot_vars), 1, figsize=(fig_width, 5 * len(plot_vars)))
+    
+    # Make sure axs is always a list, even if plot_vars has only one item
+    if len(plot_vars) == 1:
+        axs = [axs]
+    
+    for idx, var in enumerate(plot_vars):
+        sns.barplot(x=df.index, y=df[var], ax=axs[idx], color='blue')
+        axs[idx].set_title(f'Distribution of {var} by {grouping}')
+        axs[idx].set_xlabel(grouping)
+        axs[idx].set_ylabel("log " + var)
+        axs[idx].set_yscale("log")  # Set y-axis to log scale
+        plt.setp(axs[idx].xaxis.get_majorticklabels(), rotation=90)
+
+        # Place a red marker for groups with probability 0 or NaN
+        for i, value in enumerate(df[var]):
+            if pd.isna(value) or value == 0:
+                axs[idx].plot(i, 1, 'r^', markersize=10)  # Red triangle marker
+
+    plt.tight_layout()
+    plt.show()
+
+def v_0_1_0_compute_sampling_probability(df, grouping, sample_fraction=0.1, n_iterations=1000):
+    # Step 1: Compute original proportions
+    original_counts = df.groupby(grouping).size()
+    original_proportions = original_counts / len(df)
+    
+    sampled_proportions = {group: [] for group in original_proportions.index}
+    
+    # Step 2: Perform Bootstrapping
+    for _ in range(n_iterations):
+        sampled_df = df.sample(frac=sample_fraction)
+        sampled_counts = sampled_df.groupby(grouping).size()
+        for group in original_proportions.index:
+            sampled_proportions[group].append(sampled_counts.get(group, 0) / len(sampled_df))
+    
+    # Step 3: Compute sampling proportions mean
+    sampling_probabilities = {group: np.mean(proportions) for group, proportions in sampled_proportions.items()}
+    
+    return sampling_probabilities
+
+
+def compute_sampling_probability(df, grouping, sample_fraction=0.1, n_iterations=1000):
+    # Initialize dictionaries to store proportions for both methods
+    stratified_proportions = {group: [] for group in df[grouping].unique()}
+    non_stratified_proportions = {group: [] for group in df[grouping].unique()}
+
+    # Compute original group distribution and find the smallest fraction
+    original_counts = df.groupby(grouping).size()
+    original_proportions = original_counts / len(df)
+    min_original_proportion = original_proportions.min()
+
+    # Perform Bootstrapping
+    for _ in range(n_iterations):
+        # Stratified Sampling
+        stratified_sample = df.groupby(grouping).sample(frac=sample_fraction)
+        stratified_counts = stratified_sample.groupby(grouping).size()
+        for group in stratified_proportions:
+            proportion = stratified_counts.get(group, 0) / len(stratified_sample)
+            stratified_proportions[group].append(proportion if proportion >= min_original_proportion else 0)
+
+        # Non-Stratified Sampling
+        non_stratified_sample = df.sample(frac=sample_fraction)
+        non_stratified_counts = non_stratified_sample.groupby(grouping).size()
+        for group in non_stratified_proportions:
+            proportion = non_stratified_counts.get(group, 0) / len(non_stratified_sample)
+            non_stratified_proportions[group].append(proportion if proportion >= min_original_proportion else 0)
+
+    # Compute mean proportions
+    stratified_sampling_probabilities = {group: np.mean(proportions) for group, proportions in stratified_proportions.items()}
+    non_stratified_sampling_probabilities = {group: np.mean(proportions) for group, proportions in non_stratified_proportions.items()}
+
+    # Combine results
+    results = {
+        "stratified": stratified_sampling_probabilities,
+        "non_stratified": non_stratified_sampling_probabilities
+    }
+
+    return results
