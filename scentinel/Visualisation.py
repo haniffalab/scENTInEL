@@ -528,7 +528,24 @@ def analyze_and_plot_feat_gsea(top_loadings_lowdim, class_name, max_len=20, pre_
     
 def plot_class_distribution(adata, adata_samp, feat_use):
     # Determine the number of unique classes
+    
+    common_categories = set(adata.obs[feat_use].unique()).intersection(adata_samp.obs[feat_use].unique())
+
+    adata_common = adata.obs[adata.obs[feat_use].isin(common_categories)]
+    adata_only = adata[~adata.obs[feat_use].isin(common_categories)].obs[feat_use].sort_values().reset_index(drop=True)
+
+    adata_sorted = adata_common[feat_use].sort_values().reset_index(drop=True)
+    adata_samp_sorted = adata_samp.obs[feat_use].sort_values().reset_index(drop=True)
+
+    adata_recombined = pd.concat([adata_sorted, adata_only])
+    
     num_classes = len(adata.obs[feat_use].unique())
+    
+    # Create custom color mapping for x-axis labels
+    color_map = {label: 'red' if label not in common_categories else 'black' for label in adata_recombined}
+    
+    print("\033[1mClasses in adata but not in adata_samp are colored in red for the histogram plot.\033[0m")
+
     
     # Set the width of the plot to show up to 150 classes comfortably, adjust as needed
     width_per_class = 0.1
@@ -536,21 +553,31 @@ def plot_class_distribution(adata, adata_samp, feat_use):
     fig, ax = plt.subplots(1, 2, figsize=(fig_width, 10))
     # If there are fewer than 120 classes, use a bar plot
     if num_classes < 120:
-        sns.histplot(adata.obs[feat_use],color='blue', label='Original Data', kde=True, ax=ax[0])
-        sns.histplot(adata_samp.obs[feat_use], color='red', label='Sampled Data', kde=True,ax=ax[1])
+        sns.histplot(adata_recombined,color='blue', label='Original Data', kde=True, ax=ax[0])
+        sns.histplot(adata_samp_sorted, color='red', label='Sampled Data', kde=True,ax=ax[1])
     # Otherwise, use a histogram
         ax[0].set_yscale("log")  # Set y-axis to log scale
         ax[1].set_yscale("log")  # Set y-axis to log scale
+        
+        # Update x-axis labels color
+        for label in ax[0].get_xticklabels():
+            label.set_color(color_map[label.get_text()])
+        
     else:
         # Set number of bins
         bins = min(50, num_classes)
-        sns.histplot(adata.obs[feat_use] , bins=bins,color='blue', label='Original Data', kde=True, ax=ax[0])
-        sns.histplot(adata_samp.obs[feat_use], bins=bins, color='red', label='Sampled Data', kde=True,ax=ax[1])
+        sns.histplot(adata_recombined , bins=bins,color='blue', label='Original Data', kde=True, ax=ax[0])
+        sns.histplot(adata_samp_sorted, bins=bins, color='red', label='Sampled Data', kde=True,ax=ax[1])
         # Remove x-axis labels
         ax[0].set_xticklabels([])
         ax[1].set_xticklabels([])
         ax[0].set_yscale("log")  # Set y-axis to log scale
         ax[1].set_yscale("log")  # Set y-axis to log scale
+        
+        # Update x-axis labels color
+        for label in ax[0].get_xticklabels():
+            label.set_color(color_map[label.get_text()])
+        
     ax[0].set_title('Before Sampling')
     ax[1].set_title('After Sampling')
     plt.setp(ax[0].xaxis.get_majorticklabels(), rotation=90)
