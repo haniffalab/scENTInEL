@@ -680,18 +680,18 @@ def analyze_sampling_distribution(pre_sample_scores, post_sample_scores):
     fig.suptitle('Analysis of Sampling Distributions', fontsize=16)
 
     # Boxplot
-    sns.boxplot(data=[pre_sample_scores, post_sample_scores], orient='h', notch=True, ax=axes[0, 0])
+    sns.boxplot(data=[pre_sample_scores, post_sample_scores], orient='h', notch=True, ax=axes[0, 0], palette=['#1F77B4','#FF7F0E'])
     axes[0, 0].set_yticklabels(['Pre-sampling', 'Post-sampling'])
     axes[0, 0].set_title('Box plots of Attention Scores')
 
     # KDE plots
-    sns.kdeplot(pre_sample_scores, label='Pre-sampling', shade=True, ax=axes[0, 1])
-    sns.kdeplot(post_sample_scores, label='Post-sampling', shade=True, ax=axes[0, 1])
+    sns.kdeplot(pre_sample_scores, label='Pre-sampling', shade=True, ax=axes[0, 1], palette=['#1F77B4'])
+    sns.kdeplot(post_sample_scores, label='Post-sampling', shade=True, ax=axes[0, 1], palette=['#FF7F0E'])
     axes[0, 1].set_title('KDE of Attention Scores')
 
     # CDF plots
-    sns.ecdfplot(pre_sample_scores, label='Pre-sampling', ax=axes[1, 0])
-    sns.ecdfplot(post_sample_scores, label='Post-sampling', ax=axes[1, 0])
+    sns.ecdfplot(pre_sample_scores, label='Pre-sampling', ax=axes[1, 0], palette=['#1F77B4'])
+    sns.ecdfplot(post_sample_scores, label='Post-sampling', ax=axes[1, 0], palette=['#FF7F0E'])
     axes[1, 0].set_title('CDF of Attention Scores')
     axes[1, 0].legend()
 
