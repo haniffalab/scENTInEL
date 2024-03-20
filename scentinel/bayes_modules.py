@@ -1661,6 +1661,7 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
     attention_scores = attention_scores**alpha
     # Add the attention scores to the observation dataframe
     adata.obs['sf_attention'] = attention_scores
+    
 
     # Iterate over each unique stratifying variable
     # for n in adata.obs[strat_var].unique():
@@ -1704,6 +1705,10 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
     weights_out['v'] = v
     weights_out['all_indices'] = all_sampled_indices
     #adata_samp = adata_samp.to_memory() # copy samp into memory
-    return adata_samp,sampling_probabilities, weights_out
+    
+    sf_attention_samp = pd.DataFrame(index=adata_samp.obs.index)
+    sf_attention_samp['sf_attention'] = adata.obs.loc[adata.obs.index.isin(sf_attention_samp.index),'sf_attention']
+    
+    return adata_samp,sampling_probabilities, weights_out, sf_attention_samp
 
 
