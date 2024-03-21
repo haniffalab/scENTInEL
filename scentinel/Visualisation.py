@@ -544,12 +544,9 @@ def plot_class_distribution(adata, adata_samp, feat_use):
     # Create custom color mapping for x-axis labels
     color_map = {label: 'red' if label not in common_categories else 'black' for label in adata_recombined}
     
-    print("\033[1mClasses in adata but not in adata_samp are colored in red for the histogram plot.\033[0m")
-
-    
     # Set the width of the plot to show up to 150 classes comfortably, adjust as needed
     width_per_class = 0.1
-    fig_width = max(12, num_classes * width_per_class)
+    fig_width = max(30, num_classes * width_per_class)
     fig, ax = plt.subplots(1, 2, figsize=(fig_width, 10))
     # If there are fewer than 120 classes, use a bar plot
     if num_classes < 120:
@@ -569,19 +566,27 @@ def plot_class_distribution(adata, adata_samp, feat_use):
         sns.histplot(adata_recombined , bins=bins,color='blue', label='Original Data', kde=True, ax=ax[0])
         sns.histplot(adata_samp_sorted, bins=bins, color='red', label='Sampled Data', kde=True,ax=ax[1])
         # Remove x-axis labels
-        ax[0].set_xticklabels([])
-        ax[1].set_xticklabels([])
+        #ax[0].set_xticklabels([])
+        #ax[1].set_xticklabels([])
         ax[0].set_yscale("log")  # Set y-axis to log scale
         ax[1].set_yscale("log")  # Set y-axis to log scale
-        
-        # Update x-axis labels color
+
         for label in ax[0].get_xticklabels():
             label.set_color(color_map[label.get_text()])
         
     ax[0].set_title('Before Sampling')
     ax[1].set_title('After Sampling')
-    plt.setp(ax[0].xaxis.get_majorticklabels(), rotation=90)
-    plt.setp(ax[1].xaxis.get_majorticklabels(), rotation=90)
+    
+    # Get the number of x-axis labels
+    num_labels = len(ax[0].get_xticklabels())
+    # Get the width of the plot
+    plot_width = ax[0].get_xlim()[1] - ax[0].get_xlim()[0]
+    # Calculate a dynamically adjusted font size
+    # You can adjust the multiplier for your specific needs
+    font_size = min(14, max(8, 1000 / num_labels / plot_width))
+
+    plt.setp(ax[0].xaxis.get_majorticklabels(), rotation=90, fontsize=font_size)
+    plt.setp(ax[1].xaxis.get_majorticklabels(), rotation=90, fontsize=font_size)
     plt.tight_layout()
     plt.show()
 
