@@ -777,7 +777,7 @@ def v_0_1_0_plot_grouped_distributions(df, plot_vars, grouping):
 import matplotlib.lines as mlines
 def plot_grouped_distributions(df, plot_vars, grouping):
     # Initialize the figure
-    fig_width = 20
+    fig_width = 50
     fig, axs = plt.subplots(len(plot_vars), 1, figsize=(fig_width, 6 * len(plot_vars)))
     
     # Make sure axs is always a list, even if plot_vars has only one item
@@ -793,13 +793,24 @@ def plot_grouped_distributions(df, plot_vars, grouping):
             # Handle the case where the variable is not in df's columns
             data_to_plot = pd.Series(index=df.index, data=[0] * len(df.index))
             percentile_10 = 0
-
-        sns.barplot(x=df.index, y=data_to_plot, ax=axs[idx], color='blue', width=0.8)  # Adjust the width of bars
+        
+        
+        axs[idx].set_xlim(-0.1, len(df.index) - 0.1)  # Adjust the limits as needed
+        sns.barplot(x=df.index, y=data_to_plot, ax=axs[idx], color='blue', width=0.8)
         axs[idx].set_title(f'Distribution of {var} by {grouping}')
         axs[idx].set_xlabel(grouping)
         axs[idx].set_ylabel("log " + var)
         axs[idx].set_yscale("log")
-        plt.setp(axs[idx].xaxis.get_majorticklabels(), rotation=90)
+        
+        # Adjust rotation and font size of x-axis labels dynamically based on the number of data points
+        num_labels = len(df.index)
+        fontsize = fig_width / num_labels * 20  # Adjust the multiplier as needed
+        
+        # manually assign fontsize (AR)
+        if fontsize < 5:
+            fontsize = 5
+            
+        axs[idx].tick_params(axis='x', rotation=90, labelsize=fontsize)
         
         # Calculate the maximal height for markers
         max_height = axs[idx].get_ylim()[1] * 0.95  # 95% of the maximum y-value
@@ -807,13 +818,15 @@ def plot_grouped_distributions(df, plot_vars, grouping):
         # Place markers at the maximal height
         for i, value in enumerate(data_to_plot):
             if pd.isna(value) or value == 0:
-                axs[idx].plot(i, max_height, 'r^', markersize=10)  # Red triangle marker
+                axs[idx].plot(i, max_height, 'rv', markersize=10)  # Red downward-pointing triangle marker
+                axs[idx].xaxis.get_majorticklabels()[i].set_color('red')  # Set x-axis label color to red
             elif value > 0 and value <= percentile_10:
-                axs[idx].plot(i, max_height, 'g^', markersize=10)  # Green triangle marker
-
+                axs[idx].plot(i, max_height, 'gv', markersize=10)  # Green downward-pointing triangle marker
+                axs[idx].xaxis.get_majorticklabels()[i].set_color('green')  # Set x-axis label color to green
+    
     # Create legend handles using Line2D
-    red_triangle = mlines.Line2D([], [], color='none', label='Red triangle: 0 or NaN', marker='^', markersize=10, markerfacecolor='red', linestyle='None')
-    green_triangle = mlines.Line2D([], [], color='none', label='Green triangle: ≤ 10th Percentile', marker='^', markersize=10, markerfacecolor='green', linestyle='None')
+    red_triangle = mlines.Line2D([], [], color='none', label='Red triangle: 0 or NaN', marker='v', markersize=10, markerfacecolor='red', linestyle='None')
+    green_triangle = mlines.Line2D([], [], color='none', label='Green triangle: ≤ 10th Percentile', marker='v', markersize=10, markerfacecolor='green', linestyle='None')
 
     # Place the legend at the bottom right of the figure
     plt.legend(handles=[red_triangle, green_triangle], loc='upper right', bbox_to_anchor=(1.15, 1.2), fancybox=True)
