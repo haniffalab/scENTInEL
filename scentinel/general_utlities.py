@@ -429,7 +429,7 @@ def aggregate_data(adata, adata_samp, connectivity_matrix, method='local', chunk
     if adata_samp.isbacked:
         adata_samp = adata_samp.to_memory()
     
-    print("Data is too large to process in a single view, processing in chunks ")
+    print("Data is too large to process in a single view or in backed mode, processing in chunks ")
     # Determine the number of chunks to process
     n_samples = adata_samp.shape[0]
     n_chunks = (n_samples + chunk_size - 1) // chunk_size  # Ceiling division
