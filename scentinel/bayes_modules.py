@@ -1608,11 +1608,11 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     #adata_samp.obs['sf_attention'] = adata.obs.loc[adata.obs.index.isin(adata_samp.obs.index),'sf_attention']
     
     adata.obs['sf_attention'] = all_weights
-    sf_attention_samp = pd.DataFrame(index=adata_samp.obs.index)
-    sf_attention_samp['sf_attention'] = '0'
-    sf_attention_samp['sf_attention'] = adata.obs.loc[adata.obs.index.isin(sf_attention_samp.index),'sf_attention']
+    weights_out['adata_samp_sf_attention'] = pd.DataFrame(index=adata_samp.obs.index)
+    weights_out['adata_samp_sf_attention']['sf_attention'] = '0'
+    weights_out['adata_samp_sf_attention']['sf_attention'] = adata.obs.loc[adata.obs.index.isin(weights_out['adata_samp_sf_attention'].index),'sf_attention']
     
-    return adata_samp, final_sample_indices, weights_out, sf_attention_samp
+    return adata_samp, final_sample_indices, weights_out
 
 
 def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1,representation_priority = 0.9, equal_allocation=False, replace = True,weight_penalty='laplacian_SGD_pagerank',pl_label_entropy=False,resample_clones=False,n_hops=2, **kwargs):
@@ -1706,9 +1706,10 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
     weights_out['all_indices'] = all_sampled_indices
     #adata_samp = adata_samp.to_memory() # copy samp into memory
     
-    sf_attention_samp = pd.DataFrame(index=adata_samp.obs.index)
-    sf_attention_samp['sf_attention'] = adata.obs.loc[adata.obs.index.isin(sf_attention_samp.index),'sf_attention']
+    weights_out['adata_samp_sf_attention'] = pd.DataFrame(index=adata_samp.obs.index)
+    weights_out['adata_samp_sf_attention']['sf_attention'] = '0'
+    weights_out['adata_samp_sf_attention']['sf_attention'] = adata.obs.loc[adata.obs.index.isin(weights_out['adata_samp_sf_attention'].index),'sf_attention']
     
-    return adata_samp,sampling_probabilities, weights_out, sf_attention_samp
+    return adata_samp,sampling_probabilities, weights_out 
 
 
