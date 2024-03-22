@@ -607,3 +607,42 @@ def plot_resources(monitor,mem_key = 'rss_memory_data',cpu_key = 'cpu_data'):
     
     plt.tight_layout()
     plt.show()
+    
+    
+    
+def celltype_threshold_checker(
+    adata : anndata.AnnData,
+    adata_samp : anndata.AnnData, 
+    threshold_cell_number: int, 
+    **kwargs):
+    
+    feat_use = kwargs.get('feat_use', None)
+
+    # Get the value counts for the specified column in both AnnData objects
+    value_counts_adata = adata.obs[feat_use].value_counts().reset_index()
+    value_counts_adata_samp = adata_samp.obs[feat_use].value_counts().reset_index()
+
+    # Rename the columns to distinguish between the two datasets
+    value_counts_adata.columns = [feat_use, "Count (adata)"]
+    value_counts_adata_samp.columns = [feat_use, "Count (adata_samp)"]
+
+    # Merge the two DataFrames on the column of interest (e.g., 'col')
+    merged_value_counts = pd.merge(value_counts_adata, value_counts_adata_samp, on=feat_use, how="outer")
+
+    # Fill NaN values with 0
+    merged_value_counts = merged_value_counts.fillna(0)
+    
+    # Calculate additional columns
+    merged_value_counts['Relative Proportion (adata)'] = merged_value_counts['Count (adata)'] / merged_value_counts['Count (adata)'].sum()
+    merged_value_counts['Relative Proportion (adata_samp)'] = merged_value_counts['Count (adata_samp)'] / merged_value_counts['Count (adata_samp)'].sum()
+    merged_value_counts['Percentage of Original Data Captured'] = (merged_value_counts['Count (adata_samp)'] / merged_value_counts['Count (adata)'].sum()) * 100
+    merged_value_counts['Delta Proportion Change'] = merged_value_counts['Relative Proportion (adata_samp)'] - merged_value_counts['Relative Proportion (adata)']
+    
+    # Filter rows based on the threshold_cell_number
+    filtered_rows = merged_value_counts[merged_value_counts["Count (adata_samp)"] < threshold_cell_number]
+
+    # Sort the DataFrame by the number of cells captured in adata_samp
+    sorted_table = filtered_rows.sort_values(by="Count (adata_samp)", ascending=False)
+
+    # Return tables
+    return merged_value_counts, sorted_table
