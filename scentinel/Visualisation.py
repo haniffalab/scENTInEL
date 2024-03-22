@@ -528,33 +528,65 @@ def analyze_and_plot_feat_gsea(top_loadings_lowdim, class_name, max_len=20, pre_
     
 def plot_class_distribution(adata, adata_samp, feat_use):
     # Determine the number of unique classes
+    
+    common_categories = set(adata.obs[feat_use].unique()).intersection(adata_samp.obs[feat_use].unique())
+
+    adata_common = adata.obs[adata.obs[feat_use].isin(common_categories)]
+    adata_only = adata[~adata.obs[feat_use].isin(common_categories)].obs[feat_use].sort_values().reset_index(drop=True)
+
+    adata_sorted = adata_common[feat_use].sort_values().reset_index(drop=True)
+    adata_samp_sorted = adata_samp.obs[feat_use].sort_values().reset_index(drop=True)
+
+    adata_recombined = pd.concat([adata_sorted, adata_only])
+    
     num_classes = len(adata.obs[feat_use].unique())
+    
+    # Create custom color mapping for x-axis labels
+    color_map = {label: 'red' if label not in common_categories else 'black' for label in adata_recombined}
     
     # Set the width of the plot to show up to 150 classes comfortably, adjust as needed
     width_per_class = 0.1
-    fig_width = max(12, num_classes * width_per_class)
+    fig_width = max(30, num_classes * width_per_class)
     fig, ax = plt.subplots(1, 2, figsize=(fig_width, 10))
     # If there are fewer than 120 classes, use a bar plot
     if num_classes < 120:
-        sns.histplot(adata.obs[feat_use],color='blue', label='Original Data', kde=True, ax=ax[0])
-        sns.histplot(adata_samp.obs[feat_use], color='red', label='Sampled Data', kde=True,ax=ax[1])
+        sns.histplot(adata_recombined,color='blue', label='Original Data', kde=True, ax=ax[0])
+        sns.histplot(adata_samp_sorted, color='red', label='Sampled Data', kde=True,ax=ax[1])
     # Otherwise, use a histogram
         ax[0].set_yscale("log")  # Set y-axis to log scale
         ax[1].set_yscale("log")  # Set y-axis to log scale
+        
+        # Update x-axis labels color
+        for label in ax[0].get_xticklabels():
+            label.set_color(color_map[label.get_text()])
+        
     else:
         # Set number of bins
         bins = min(50, num_classes)
-        sns.histplot(adata.obs[feat_use] , bins=bins,color='blue', label='Original Data', kde=True, ax=ax[0])
-        sns.histplot(adata_samp.obs[feat_use], bins=bins, color='red', label='Sampled Data', kde=True,ax=ax[1])
+        sns.histplot(adata_recombined , bins=bins,color='blue', label='Original Data', kde=True, ax=ax[0])
+        sns.histplot(adata_samp_sorted, bins=bins, color='red', label='Sampled Data', kde=True,ax=ax[1])
         # Remove x-axis labels
-        ax[0].set_xticklabels([])
-        ax[1].set_xticklabels([])
+        #ax[0].set_xticklabels([])
+        #ax[1].set_xticklabels([])
         ax[0].set_yscale("log")  # Set y-axis to log scale
         ax[1].set_yscale("log")  # Set y-axis to log scale
+
+        for label in ax[0].get_xticklabels():
+            label.set_color(color_map[label.get_text()])
+        
     ax[0].set_title('Before Sampling')
     ax[1].set_title('After Sampling')
-    plt.setp(ax[0].xaxis.get_majorticklabels(), rotation=90)
-    plt.setp(ax[1].xaxis.get_majorticklabels(), rotation=90)
+    
+    # Get the number of x-axis labels
+    num_labels = len(ax[0].get_xticklabels())
+    # Get the width of the plot
+    plot_width = ax[0].get_xlim()[1] - ax[0].get_xlim()[0]
+    # Calculate a dynamically adjusted font size
+    # You can adjust the multiplier for your specific needs
+    font_size = min(14, max(8, 1000 / num_labels / plot_width))
+
+    plt.setp(ax[0].xaxis.get_majorticklabels(), rotation=90, fontsize=font_size)
+    plt.setp(ax[1].xaxis.get_majorticklabels(), rotation=90, fontsize=font_size)
     plt.tight_layout()
     plt.show()
 
@@ -680,18 +712,18 @@ def analyze_sampling_distribution(pre_sample_scores, post_sample_scores):
     fig.suptitle('Analysis of Sampling Distributions', fontsize=16)
 
     # Boxplot
-    sns.boxplot(data=[pre_sample_scores, post_sample_scores], orient='h', notch=True, ax=axes[0, 0])
+    sns.boxplot(data=[pre_sample_scores, post_sample_scores], orient='h', notch=True, ax=axes[0, 0], palette=['#1F77B4','#FF7F0E'])
     axes[0, 0].set_yticklabels(['Pre-sampling', 'Post-sampling'])
     axes[0, 0].set_title('Box plots of Attention Scores')
 
     # KDE plots
-    sns.kdeplot(pre_sample_scores, label='Pre-sampling', shade=True, ax=axes[0, 1])
-    sns.kdeplot(post_sample_scores, label='Post-sampling', shade=True, ax=axes[0, 1])
+    sns.kdeplot(pre_sample_scores, label='Pre-sampling', shade=True, ax=axes[0, 1], palette=['#1F77B4'])
+    sns.kdeplot(post_sample_scores, label='Post-sampling', shade=True, ax=axes[0, 1], palette=['#FF7F0E'])
     axes[0, 1].set_title('KDE of Attention Scores')
 
     # CDF plots
-    sns.ecdfplot(pre_sample_scores, label='Pre-sampling', ax=axes[1, 0])
-    sns.ecdfplot(post_sample_scores, label='Post-sampling', ax=axes[1, 0])
+    sns.ecdfplot(pre_sample_scores, label='Pre-sampling', ax=axes[1, 0], palette=['#1F77B4'])
+    sns.ecdfplot(post_sample_scores, label='Post-sampling', ax=axes[1, 0], palette=['#FF7F0E'])
     axes[1, 0].set_title('CDF of Attention Scores')
     axes[1, 0].legend()
 
@@ -745,7 +777,7 @@ def v_0_1_0_plot_grouped_distributions(df, plot_vars, grouping):
 import matplotlib.lines as mlines
 def plot_grouped_distributions(df, plot_vars, grouping):
     # Initialize the figure
-    fig_width = 20
+    fig_width = 50
     fig, axs = plt.subplots(len(plot_vars), 1, figsize=(fig_width, 6 * len(plot_vars)))
     
     # Make sure axs is always a list, even if plot_vars has only one item
@@ -761,13 +793,24 @@ def plot_grouped_distributions(df, plot_vars, grouping):
             # Handle the case where the variable is not in df's columns
             data_to_plot = pd.Series(index=df.index, data=[0] * len(df.index))
             percentile_10 = 0
-
-        sns.barplot(x=df.index, y=data_to_plot, ax=axs[idx], color='blue', width=0.8)  # Adjust the width of bars
+        
+        
+        axs[idx].set_xlim(-0.1, len(df.index) - 0.1)  # Adjust the limits as needed
+        sns.barplot(x=df.index, y=data_to_plot, ax=axs[idx], color='blue', width=0.8)
         axs[idx].set_title(f'Distribution of {var} by {grouping}')
         axs[idx].set_xlabel(grouping)
         axs[idx].set_ylabel("log " + var)
         axs[idx].set_yscale("log")
-        plt.setp(axs[idx].xaxis.get_majorticklabels(), rotation=90)
+        
+        # Adjust rotation and font size of x-axis labels dynamically based on the number of data points
+        num_labels = len(df.index)
+        fontsize = fig_width / num_labels * 20  # Adjust the multiplier as needed
+        
+        # manually assign fontsize (AR)
+        if fontsize < 5:
+            fontsize = 5
+            
+        axs[idx].tick_params(axis='x', rotation=90, labelsize=fontsize)
         
         # Calculate the maximal height for markers
         max_height = axs[idx].get_ylim()[1] * 0.95  # 95% of the maximum y-value
@@ -775,13 +818,15 @@ def plot_grouped_distributions(df, plot_vars, grouping):
         # Place markers at the maximal height
         for i, value in enumerate(data_to_plot):
             if pd.isna(value) or value == 0:
-                axs[idx].plot(i, max_height, 'r^', markersize=10)  # Red triangle marker
+                axs[idx].plot(i, max_height, 'rv', markersize=10)  # Red downward-pointing triangle marker
+                axs[idx].xaxis.get_majorticklabels()[i].set_color('red')  # Set x-axis label color to red
             elif value > 0 and value <= percentile_10:
-                axs[idx].plot(i, max_height, 'g^', markersize=10)  # Green triangle marker
-
+                axs[idx].plot(i, max_height, 'gv', markersize=10)  # Green downward-pointing triangle marker
+                axs[idx].xaxis.get_majorticklabels()[i].set_color('green')  # Set x-axis label color to green
+    
     # Create legend handles using Line2D
-    red_triangle = mlines.Line2D([], [], color='none', label='Red triangle: 0 or NaN', marker='^', markersize=10, markerfacecolor='red', linestyle='None')
-    green_triangle = mlines.Line2D([], [], color='none', label='Green triangle: ≤ 10th Percentile', marker='^', markersize=10, markerfacecolor='green', linestyle='None')
+    red_triangle = mlines.Line2D([], [], color='none', label='Red triangle: 0 or NaN', marker='v', markersize=10, markerfacecolor='red', linestyle='None')
+    green_triangle = mlines.Line2D([], [], color='none', label='Green triangle: ≤ 10th Percentile', marker='v', markersize=10, markerfacecolor='green', linestyle='None')
 
     # Place the legend at the bottom right of the figure
     plt.legend(handles=[red_triangle, green_triangle], loc='upper right', bbox_to_anchor=(1.15, 1.2), fancybox=True)

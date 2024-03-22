@@ -1602,11 +1602,15 @@ def empirical_bayes_balanced_stratified_KNN_sampling(adata, feat_use, knn_key, s
     weights_out['all_indices'] = all_indices
     
     # temp patch to include sf_attention
-    adata_samp = adata_samp.to_memory() # copy samp into memory
+    #adata_samp = adata_samp.to_memory() # copy samp into memory
+    #adata.obs['sf_attention'] = all_weights
+    #adata_samp.obs['sf_attention'] = 0
+    #adata_samp.obs['sf_attention'] = adata.obs.loc[adata.obs.index.isin(adata_samp.obs.index),'sf_attention']
+    
     adata.obs['sf_attention'] = all_weights
-    adata_samp.obs['sf_attention'] = 0
-    adata_samp.obs['sf_attention'] = adata.obs.loc[adata.obs.index.isin(adata_samp.obs.index),'sf_attention']
-
+    weights_out['adata_samp_sf_attention'] = pd.DataFrame(index=adata_samp.obs.index)
+    weights_out['adata_samp_sf_attention']['sf_attention'] = '0'
+    weights_out['adata_samp_sf_attention']['sf_attention'] = adata.obs.loc[adata.obs.index.isin(weights_out['adata_samp_sf_attention'].index),'sf_attention']
     
     return adata_samp, final_sample_indices, weights_out
 
@@ -1657,6 +1661,7 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
     attention_scores = attention_scores**alpha
     # Add the attention scores to the observation dataframe
     adata.obs['sf_attention'] = attention_scores
+    
 
     # Iterate over each unique stratifying variable
     # for n in adata.obs[strat_var].unique():
@@ -1699,7 +1704,12 @@ def Attention_based_KNN_sampling(adata, knn_key, sampling_rate=0.1, iterations=1
     weights_out['all_weights'] = attention_scores
     weights_out['v'] = v
     weights_out['all_indices'] = all_sampled_indices
-    adata_samp = adata_samp.to_memory() # copy samp into memory
-    return adata_samp,sampling_probabilities, weights_out
+    #adata_samp = adata_samp.to_memory() # copy samp into memory
+    
+    weights_out['adata_samp_sf_attention'] = pd.DataFrame(index=adata_samp.obs.index)
+    weights_out['adata_samp_sf_attention']['sf_attention'] = '0'
+    weights_out['adata_samp_sf_attention']['sf_attention'] = adata.obs.loc[adata.obs.index.isin(weights_out['adata_samp_sf_attention'].index),'sf_attention']
+    
+    return adata_samp,sampling_probabilities, weights_out 
 
 
