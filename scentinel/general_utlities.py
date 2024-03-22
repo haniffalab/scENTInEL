@@ -646,3 +646,47 @@ def celltype_threshold_checker(
 
     # Return tables
     return merged_value_counts, sorted_table
+
+
+def update_label_anchors_by_lower_threshold(
+    adata : anndata.AnnData,
+    adata_samp : anndata.AnnData, 
+    threshold_cell_number: int, 
+    **kwargs):
+    
+    feat_use = kwargs.get('feat_use', None)
+    
+    # Get labels below the minimum cells to recover in adata_samp
+    recovery_labels = [val for val in adata.obs[feat_use].unique() if val not in adata_samp.obs[feat_use].values or adata_samp.obs[feat_use].value_counts().get(val, 0) < threshold_cell_number]
+    
+    # Check if there are any labels to process
+    if not recovery_labels:
+        print("No labels below the minimum cell recovery threshold. Resulting adata_samp has not changed.")
+        return adata_samp
+    
+    else:
+        l = len(recovery_labels)
+        print(f"{l} labels below the minimum cell recovery threshold. Recovering these labels based off attention score to return up to {threshold_cell_number} cells per label.")
+        
+        # Initialize indexes list
+        indexes = []
+
+        # Iterate over labels
+        for label in recovery_labels:
+            df = adata.obs[adata.obs[feat_use].isin([label])]
+            
+            # only consider cells which are not already in adata_samp
+            df = df[~df.index.isin(list(adata_samp.obs.index))]
+
+            # Check if there are enough cells for the specified label
+            if len(df) < threshold_cell_number:
+                indexes.extend(list(df.sort_values(by='sf_attention', ascending=False).index))
+
+            else:
+                indexes.extend(list(df.sort_values(by='sf_attention', ascending=False).head(threshold_cell_number).index))
+        
+        indexes = list(adata_samp.obs.index) + indexes
+        adata_samp = adata[adata.obs.index.isin(indexes)]
+        gc.collect()
+        print('Updated indexes for adata_samp completed')
+        return adata_samp
