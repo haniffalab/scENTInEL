@@ -24,10 +24,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import numpy as np
+import logging
 from collections import namedtuple
 
-CentersDictionary = namedtuple('CentersDictionary', ('idx', 'X', 'probs', 'lam', 'qbar'))
+import numpy as np
+
+CentersDictionary = namedtuple(
+    "CentersDictionary", ("idx", "X", "probs", "lam", "qbar")
+)
 
 
 def __load_gpu_module(force_cpu: bool):
@@ -47,15 +51,17 @@ def __load_gpu_module(force_cpu: bool):
     if not force_cpu:
         try:
             import cupy as cp
+
             xp = cp
         except ImportError:
-            print("cupy not found, defaulting to numpy")
+            logging.info("cupy not found, defaulting to numpy")
 
     return xp
 
 
 def __get_progress_bar(total=-1, disable=False):
     """Helper function to get a tqdm progress bar (or a simple fallback otherwise)"""
+
     class ProgBar(object):
         def __init__(self, total=-1, disable=False):
             self.disable = disable
@@ -85,15 +91,16 @@ def __get_progress_bar(total=-1, disable=False):
                 print_str += ": {}".format(self.debug_string)
 
                 if len(print_str) < 80:
-                    print_str = print_str + " "*(80 - len(print_str))
+                    print_str = print_str + " " * (80 - len(print_str))
 
-                print(print_str, end='\r', flush=True)
+                logging.info(print_str, end="\r", flush=True)
 
             if self.t == self.total:
-                print("")
+                logging.info("")
 
     try:
         from tqdm import tqdm
+
         progress_bar = tqdm(total=total, disable=disable)
     except ImportError:
         progress_bar = ProgBar(total=total, disable=disable)
@@ -109,7 +116,7 @@ def __stable_invert_root(U: np.ndarray, S: np.ndarray):
 
     # threshold formula taken from pinv2's implementation of numpy/scipy
     thresh = S.max() * max(S.shape) * np.finfo(S.dtype).eps
-    stable_eig = np.logical_not(np.isclose(S, 0., atol=thresh))
+    stable_eig = np.logical_not(np.isclose(S, 0.0, atol=thresh))
     m = sum(stable_eig)
 
     U_thin = U[:, stable_eig]
@@ -123,11 +130,13 @@ def __stable_invert_root(U: np.ndarray, S: np.ndarray):
     return U_thin, S_thin_inv_root
 
 
-def compute_tau(centers_dict: CentersDictionary,
-                X: np.ndarray,
-                similarity_func: callable,
-                lam_new: float,
-                force_cpu=False):
+def compute_tau(
+    centers_dict: CentersDictionary,
+    X: np.ndarray,
+    similarity_func: callable,
+    lam_new: float,
+    force_cpu=False,
+):
     """Given a previosuly computed (eps, lambda)-accurate dictionary, it computes estimates
     of all RLS using the estimator from Calandriello et al. 2017"""
     xp = __load_gpu_module(force_cpu)
@@ -143,8 +152,12 @@ def compute_tau(centers_dict: CentersDictionary,
     # diag(XX' - XX'(X'X + lam*S^(-2))^(-1)XX')/lam
     # note that in the second term we take care of dropping the rows/columns of X associated
     # with 0 entries in S
-    U_DD, S_DD, _ = np.linalg.svd(xp.asnumpy(similarity_func(centers_dict.X, centers_dict.X)
-                                             + lam_new * np.diag(centers_dict.probs)))
+    U_DD, S_DD, _ = np.linalg.svd(
+        xp.asnumpy(
+            similarity_func(centers_dict.X, centers_dict.X)
+            + lam_new * np.diag(centers_dict.probs)
+        )
+    )
 
     U_DD, S_root_inv_DD = __stable_invert_root(U_DD, S_DD)
 
@@ -155,23 +168,29 @@ def compute_tau(centers_dict: CentersDictionary,
 
     # the diagonal entries of XX'(X'X + lam*S^(-2))^(-1)XX' are just the squared
     # ell-2 norm of the columns of (X'X + lam*S^(-2))^(-1/2)XX'
-    tau = (diag_norm - xp.asnumpy(xp.square(X_precond, out=X_precond).sum(axis=0))) / lam_new
+    tau = (
+        diag_norm - xp.asnumpy(xp.square(X_precond, out=X_precond).sum(axis=0))
+    ) / lam_new
 
-    assert np.all(tau >= 0.), ('Some estimated RLS is negative, this should never happen. '
-                               'Min prob: {:.5f}'.format(np.min(tau)))
+    assert np.all(tau >= 0.0), (
+        "Some estimated RLS is negative, this should never happen. "
+        "Min prob: {:.5f}".format(np.min(tau))
+    )
 
     return tau
 
 
-def reduce_lambda(X: np.ndarray,
-                  similarity_func: callable,
-                  centers_dict: CentersDictionary,
-                  lam_new: float,
-                  random_state: np.random.RandomState,
-                  qbar=None,
-                  force_cpu=False):
+def reduce_lambda(
+    X: np.ndarray,
+    similarity_func: callable,
+    centers_dict: CentersDictionary,
+    lam_new: float,
+    random_state: np.random.RandomState,
+    qbar=None,
+    force_cpu=False,
+):
     """Given a previosuly computed (eps, lambda)-accurate dictionary and a lambda' < lambda parameter,
-     it constructs an (eps, lambda')-accurate dictionary using approximate RLS sampling.
+    it constructs an (eps, lambda')-accurate dictionary using approximate RLS sampling.
     """
 
     n, d = X.shape
@@ -181,19 +200,21 @@ def reduce_lambda(X: np.ndarray,
 
     red_ratio = centers_dict.lam / lam_new
 
-    assert red_ratio >= 1.
+    assert red_ratio >= 1.0
 
     diag = np.asarray(similarity_func.diag(X))
 
     # compute upper confidence bound on RLS of each sample, overestimate (oversample) by a qbar factor
     # to boost success probability at the expenses of a larger sample (dictionary)
-    ucb = np.minimum(qbar * diag / (diag + lam_new), 1.)
+    ucb = np.minimum(qbar * diag / (diag + lam_new), 1.0)
 
     U = np.asarray(random_state.rand(n)) <= ucb
     u = U.sum()
 
-    assert u > 0, ('No point selected during uniform sampling step, try to increase qbar. '
-                   'Expected number of points: {:.3f}'.format(n * ucb))
+    assert u > 0, (
+        "No point selected during uniform sampling step, try to increase qbar. "
+        "Expected number of points: {:.3f}".format(n * ucb)
+    )
 
     X_U = X[U, :]
 
@@ -201,35 +222,52 @@ def reduce_lambda(X: np.ndarray,
     tau = compute_tau(centers_dict, X_U, similarity_func, lam_new, force_cpu)
 
     # RLS should always be smaller than 1
-    tau = np.minimum(tau, 1.)
+    tau = np.minimum(tau, 1.0)
 
     # same as before, oversample by a qbar factor
     probs = np.minimum(qbar * tau, ucb[U]) / ucb[U]
 
-    assert np.all(probs >= 0.), ('Some estimated probability is negative, this should never happen. '
-                                 'Min prob: {:.5f}'.format(np.min(probs)))
+    assert np.all(probs >= 0.0), (
+        "Some estimated probability is negative, this should never happen. "
+        "Min prob: {:.5f}".format(np.min(probs))
+    )
 
-    deff_estimate = probs.sum()/qbar
-    assert qbar*deff_estimate >= 1., ('Estimated deff is smaller than 1, you might want to reconsider your kernel. '
-                                      'deff_estimate: {:.3f}'.format(qbar*deff_estimate))
+    deff_estimate = probs.sum() / qbar
+    assert qbar * deff_estimate >= 1.0, (
+        "Estimated deff is smaller than 1, you might want to reconsider your kernel. "
+        "deff_estimate: {:.3f}".format(qbar * deff_estimate)
+    )
 
     selected = np.asarray(random_state.rand(u)) <= probs
 
     s = selected.sum()
 
-    assert s > 0, ('No point selected during RLS sampling step, try to increase qbar. '
-                   'Expected number of points (qbar*deff): {:.3f}'.format(np.sum(probs)))
+    assert s > 0, (
+        "No point selected during RLS sampling step, try to increase qbar. "
+        "Expected number of points (qbar*deff): {:.3f}".format(np.sum(probs))
+    )
 
-    D_new = CentersDictionary(idx=U.nonzero()[0][selected.nonzero()[0]],
-                              X=X_U[selected, :],
-                              probs=probs[selected],
-                              lam=lam_new,
-                              qbar=qbar)
+    D_new = CentersDictionary(
+        idx=U.nonzero()[0][selected.nonzero()[0]],
+        X=X_U[selected, :],
+        probs=probs[selected],
+        lam=lam_new,
+        qbar=qbar,
+    )
 
     return D_new
 
 
-def bless(X, similarity_func, lam_final=2.0, qbar=2, random_state=None, H=None, force_cpu=False, verbose=True):
+def bless(
+    X,
+    similarity_func,
+    lam_final=2.0,
+    qbar=2,
+    random_state=None,
+    H=None,
+    force_cpu=False,
+    verbose=True,
+):
     """
     Returns a (eps, lambda)-accurate dictionary of Nystrom centers sampled according to approximate RLS.
 
@@ -265,12 +303,12 @@ def bless(X, similarity_func, lam_final=2.0, qbar=2, random_state=None, H=None, 
         This linearly increases the size of the output dictionary, making the algorithm less memory and time efficient,
         but reduces variance and the negative effects of randomness on the accuracy of the algorithm.
         Empirically, a small factor qbar = [2,10] seems to work. It is suggested to start with a small number and
-        increase if the algorithm fails to terminate or is not accurate. 
+        increase if the algorithm fails to terminate or is not accurate.
         For more details, see [Rudi et al. 2018](https://arxiv.org/abs/1810.13258)
 
     random_state: np.random.RandomState or int or None
-        Random number generator (RNG) used for the algorithm. 
-        By default, if random_state is not provided, a numpy's RandomState with default seeding is used. 
+        Random number generator (RNG) used for the algorithm.
+        By default, if random_state is not provided, a numpy's RandomState with default seeding is used.
         If a numpy's RandomState is passed, it is used as RNG. If an int is passed, it is used to seed a RandomState.
 
     H: int
@@ -322,7 +360,7 @@ def bless(X, similarity_func, lam_final=2.0, qbar=2, random_state=None, H=None, 
 
     n, d = X.shape
 
-    H = H if H is not None else np.ceil(np.log(n)).astype('int')
+    H = H if H is not None else np.ceil(np.log(n)).astype("int")
 
     if random_state is None:
         rng = np.random.RandomState()
@@ -331,8 +369,10 @@ def bless(X, similarity_func, lam_final=2.0, qbar=2, random_state=None, H=None, 
     elif isinstance(random_state, np.random.RandomState):
         rng = random_state
     else:
-        raise ValueError('Cannot understand what you passed as a random number generator.')
-    
+        raise ValueError(
+            "Cannot understand what you passed as a random number generator."
+        )
+
     diag_norm = np.asarray(similarity_func.diag(X))
     ucb_init = qbar * diag_norm / n
 
@@ -341,25 +381,29 @@ def bless(X, similarity_func, lam_final=2.0, qbar=2, random_state=None, H=None, 
     # force at least one sample to be selected
     selected_init[0] = 1
 
-    D = CentersDictionary(idx=selected_init.nonzero(),
-                   X=X[selected_init, :],
-                   probs=np.ones(np.sum(selected_init)) * ucb_init[selected_init],
-                   lam=n,
-                   qbar=qbar)
+    D = CentersDictionary(
+        idx=selected_init.nonzero(),
+        X=X[selected_init, :],
+        probs=np.ones(np.sum(selected_init)) * ucb_init[selected_init],
+        lam=n,
+        qbar=qbar,
+    )
 
     lam_sequence = list(np.geomspace(lam_final, n, H))
 
     # discard n from the list, we already used it to initialize
     lam_sequence.pop()
 
-    with __get_progress_bar(total=len(lam_sequence), disable=not(verbose)) as t:
+    with __get_progress_bar(total=len(lam_sequence), disable=not (verbose)) as t:
         while len(lam_sequence) > 0:
             lam_new = lam_sequence.pop()
             D = reduce_lambda(X, similarity_func, D, lam_new, rng, force_cpu=force_cpu)
-            t.set_postfix(lam=int(lam_new),
-                          m=len(D.probs),
-                          m_expected=int(D.probs.mean()*n),
-                          probs_dist=f"({D.probs.mean()/qbar:.4}, {D.probs.max()/qbar:.4}, {D.probs.min()/qbar:.4})")
+            t.set_postfix(
+                lam=int(lam_new),
+                m=len(D.probs),
+                m_expected=int(D.probs.mean() * n),
+                probs_dist=f"({D.probs.mean()/qbar:.4}, {D.probs.max()/qbar:.4}, {D.probs.min()/qbar:.4})",
+            )
             t.update()
 
     return D
@@ -369,7 +413,9 @@ def get_nystrom_embeddings(X, centers_dict, similarity_func, force_cpu=False):
     xp = __load_gpu_module(force_cpu)
     K_XD = xp.asarray(similarity_func(X, centers_dict.X))
 
-    U_DD, S_DD, _ = np.linalg.svd(xp.asnumpy(similarity_func(centers_dict.X, centers_dict.X)))
+    U_DD, S_DD, _ = np.linalg.svd(
+        xp.asnumpy(similarity_func(centers_dict.X, centers_dict.X))
+    )
     U_DD, S_root_inv_DD = __stable_invert_root(U_DD, S_DD)
 
     K_DD_inv_sqrt = xp.asarray(U_DD * S_root_inv_DD.T)
@@ -385,16 +431,17 @@ def get_nystrom_matrix_approx(X, centers_dict, similarity_func, force_cpu=False)
 def get_nystrom_PCA(X, centers_dict, similarity_func, k=-1, force_cpu=False):
     B = get_nystrom_embeddings(X, centers_dict, similarity_func, force_cpu)
     if k > B.shape[1]:
-        raise ValueError('requesting k={} principal components, but the centers dictionary can only'
-                         'approximate m={} components.'.format(k, B.shape[1]))
-    U, Sigma, _ = np.linalg.svd(B,
-                                full_matrices=False,
-                                compute_uv=True)
+        raise ValueError(
+            "requesting k={} principal components, but the centers dictionary can only"
+            "approximate m={} components.".format(k, B.shape[1])
+        )
+    U, Sigma, _ = np.linalg.svd(B, full_matrices=False, compute_uv=True)
     return np.dot(U, np.diag(Sigma))
 
 
 if __name__ == "__main__":
     from sklearn.gaussian_process.kernels import RBF
+
     X_test = np.random.randn(30000, 10)
     r = np.random.RandomState(42)
 
@@ -402,8 +449,9 @@ if __name__ == "__main__":
 
     try:
         import cupy
+
         D_test2 = bless(X_test, RBF(length_scale=10), 10, 10, r, 10, force_cpu=False)
     except ImportError:
-        print("cupy not found, defaulting to numpy")
+        logging.info("cupy not found, defaulting to numpy")
 
     pass
