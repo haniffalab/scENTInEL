@@ -11,106 +11,39 @@
 #    - Does not have majority voting set on as default, but module does exist
 #    - Multinomial logistic relies on the (not always realistic) assumption of independence of irrelevant alternatives whereas a series of binary logistic predictions does not. collinearity is assumed to be relatively low, as it becomes difficult to differentiate between the impact of several variables if this is not the case
 #    - Feel free to feed this model latent representations which capture non-linear relationships, the model will attempt to resolve any linearly seperable features. Feature engineering can be applied here.
-    
+
 ### Features to add
 #    - Add ability to consume anndata zar format for sequential learning
 ### Modes to run in
 #    - Run in training mode
 #    - Run in projection mode
-#libraries
+# libraries
 
-# import pkg_resources
-# required = {'harmonypy','sklearn','scanpy','pandas', 'numpy', 'scipy', 'matplotlib', 'seaborn' ,'scipy'}
-# installed = {pkg.key for pkg in pkg_resources.working_set}
-# missing = required - installed
-# if missing:
-#    print("Installing missing packages:" )
-#    print(missing)
-#    python = sys.executable
-#    subprocess.check_call([python, '-m', 'pip', 'install', *missing], stdout=subprocess.DEVNULL)
-import sys
-import subprocess
-from collections import Counter
-from collections import defaultdict
-import scanpy as sc
-import pandas as pd
-import pickle as pkl
-import numpy as np
-import scipy
-import matplotlib.pyplot as plt
-import re
-import glob
-import os
-import sys
-#from geosketch import gs
-from numpy import cov
-import scipy.cluster.hierarchy as spc
-import seaborn as sns; sns.set(color_codes=True)
-from sklearn.linear_model import LogisticRegression
-import sklearn
-from pathlib import Path
-import requests
-import psutil
 import random
-import threading
-import tracemalloc
-import itertools
-import math
-import warnings
-import sklearn.metrics as metrics
-from collections import Counter
-from collections import defaultdict
-import scanpy as sc
-import pandas as pd
-import pickle as pkl
-import numpy as np
-import scipy
-import matplotlib.pyplot as plt
-import re
-import glob
-import os
-import sys
-#from geosketch import gs
-from numpy import cov
-import scipy.cluster.hierarchy as spc
-import seaborn as sns; sns.set(color_codes=True)
-from sklearn.linear_model import LogisticRegression
-import sklearn
-from pathlib import Path
-import requests
-import psutil
-import random
-import threading
-import tracemalloc
-import itertools
-import math
-import warnings
-import sklearn.metrics as metrics
-import numpy as np
-from sklearn.metrics import log_loss
-import mygene
-import gseapy as gp
-import mygene
-import scipy.sparse as sparse
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn import metrics
-import seaborn as sn
-import pandas as pd
-from sklearn.metrics import confusion_matrix
-import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc3 as pm
-from scipy.sparse import csr_matrix
+import scanpy as sc
+import scipy
+import seaborn as sns
 from scipy.stats import entropy
-from sklearn.metrics import fbeta_score, make_scorer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import log_loss, make_scorer
+from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.preprocessing import StandardScaler
+
+from scentinel.raw_preprocessing_methods import subset_top_hvgs
+
+sns.set_theme(color_codes=True)
 # main_probabillistic_training_projection_modules
-    
+
+
 # projection module
-def reference_projection(adata,model,partial_scale=False,train_x_partition='X', **kwargs):
+def reference_projection(
+    adata, model, partial_scale=False, train_x_partition="X", **kwargs
+):
     """
     General description.
 
@@ -119,39 +52,52 @@ def reference_projection(adata,model,partial_scale=False,train_x_partition='X', 
     Returns:
 
     """
-    
+
     class adata_temp:
         pass
+
     from sklearn.preprocessing import StandardScaler
-    print('Determining model flavour')
+
+    print("Determining model flavour")
     try:
-        model_lr =  model['Model']
-        print('Consuming celltypist model')
-    except:# hasattr(model, 'coef_'):
-        print('Consuming non-celltypist model')
-        model_lr =  model
+        model_lr = model["Model"]
+        print("Consuming celltypist model")
+    except:  # hasattr(model, 'coef_'):
+        print("Consuming non-celltypist model")
+        model_lr = model
     print(model_lr)
-    if train_x_partition == 'X':
-        print('Matching reference genes in the model')
+    if train_x_partition == "X":
+        print("Matching reference genes in the model")
         k_x = np.isin(list(adata.var.index), list(model_lr.features))
         if k_x.sum() == 0:
-            raise ValueError(f"🛑 No features overlap with the model. Please provide gene symbols")
+            raise ValueError(
+                f"🛑 No features overlap with the model. Please provide gene symbols"
+            )
         print(f"🧬 {k_x.sum()} features used for prediction")
-        #slicing adata
+        # slicing adata
         k_x_idx = np.where(k_x)[0]
         # adata_temp = adata[:,k_x_idx]
-        adata_temp.var = adata[:,k_x_idx].var
-        adata_temp.X = adata[:,k_x_idx].X
-        adata_temp.obs = adata[:,k_x_idx].obs
-        lr_idx = pd.DataFrame(model_lr.features, columns=['features']).reset_index().set_index('features').loc[list(adata_temp.var.index)].values
+        adata_temp.var = adata[:, k_x_idx].var
+        adata_temp.X = adata[:, k_x_idx].X
+        adata_temp.obs = adata[:, k_x_idx].obs
+        lr_idx = (
+            pd.DataFrame(model_lr.features, columns=["features"])
+            .reset_index()
+            .set_index("features")
+            .loc[list(adata_temp.var.index)]
+            .values
+        )
         # adata_arr = adata_temp.X[:,list(lr_idexes['index'])]
         # slice and reorder model
-        ni, fs, cf = model_lr.n_features_in_, model_lr.features, model_lr.coef_
         model_lr.n_features_in_ = lr_idx.size
         model_lr.features = np.array(model_lr.features)[lr_idx]
-        model_lr.coef_ = np.squeeze(model_lr.coef_[:,lr_idx]) #model_lr.coef_[:, lr_idx]
+        model_lr.coef_ = np.squeeze(
+            model_lr.coef_[:, lr_idx]
+        )  # model_lr.coef_[:, lr_idx]
         if partial_scale == True:
-            print('scaling input data, default option is to use incremental learning and fit in mini bulks!')
+            print(
+                "scaling input data, default option is to use incremental learning and fit in mini bulks!"
+            )
             # Partial scaling alg
             scaler = StandardScaler(with_mean=False)
             n = adata_temp.X.shape[0]  # number of rows
@@ -159,47 +105,92 @@ def reference_projection(adata,model,partial_scale=False,train_x_partition='X', 
             x_len = len(adata_temp.var)
             y_len = len(adata.obs)
             if y_len < 100000:
-                dyn_pack = int(x_len/10)
+                dyn_pack = int(x_len / 10)
                 pack_size = dyn_pack
             else:
                 # 10 pack for every 100,000
-                dyn_pack = int((y_len/100000)*10)
-                pack_size = int(x_len/dyn_pack)
-            batch_size =  1000#pack_size#500  # number of rows in each call to partial_fit
+                dyn_pack = int((y_len / 100000) * 10)
+            batch_size = (
+                1000  # pack_size#500  # number of rows in each call to partial_fit
+            )
             index = 0  # helper-var
             while index < n:
-                partial_size = min(batch_size, n - index)  # needed because last loop is possibly incomplete
-                partial_x = adata_temp.X[index:index+partial_size]
+                partial_size = min(
+                    batch_size, n - index
+                )  # needed because last loop is possibly incomplete
+                partial_x = adata_temp.X[index : index + partial_size]
                 scaler.partial_fit(partial_x)
                 index += partial_size
             adata_temp.X = scaler.transform(adata_temp.X)
     # model projections
-    print('Starting reference projection!')
-    if train_x_partition == 'X':
+    print("Starting reference projection!")
+    if train_x_partition == "X":
         train_x = adata_temp.X
-        pred_out = pd.DataFrame(model_lr.predict(train_x),columns = ['predicted'],index = list(adata.obs.index))
-        proba =  pd.DataFrame(model_lr.predict_proba(train_x),columns = model_lr.classes_,index = list(adata.obs.index))
+        pred_out = pd.DataFrame(
+            model_lr.predict(train_x),
+            columns=["predicted"],
+            index=list(adata.obs.index),
+        )
+        proba = pd.DataFrame(
+            model_lr.predict_proba(train_x),
+            columns=model_lr.classes_,
+            index=list(adata.obs.index),
+        )
         pred_out = pred_out.join(proba)
-        
-    elif train_x_partition in list(adata.obsm.keys()): 
-        print('{low_dim: this partition modality is still under development!}')
+
+    elif train_x_partition in list(adata.obsm.keys()):
+        print("{low_dim: this partition modality is still under development!}")
         train_x = adata.obsm[train_x_partition]
-        pred_out = pd.DataFrame(model_lr.predict(train_x),columns = ['predicted'],index = list(adata.obs.index))
-        proba =  pd.DataFrame(model_lr.predict_proba(train_x),columns = model_lr.classes_,index = list(adata.obs.index))
+        pred_out = pd.DataFrame(
+            model_lr.predict(train_x),
+            columns=["predicted"],
+            index=list(adata.obs.index),
+        )
+        proba = pd.DataFrame(
+            model_lr.predict_proba(train_x),
+            columns=model_lr.classes_,
+            index=list(adata.obs.index),
+        )
         pred_out = pred_out.join(proba)
-    
+
     else:
-        print('{this partition modality is still under development!}')
+        print("{this partition modality is still under development!}")
     ## insert modules for low dim below
 
     # Simple dynamic confidence calling
-    pred_out['confident_calls'] = pred_out['predicted']
-    pred_out.loc[pred_out.max(axis=1)<(pred_out.mean(axis=1) + (1*pred_out.std(axis=1))),'confident_calls'] = pred_out.loc[pred_out.max(axis=1)<(pred_out.mean(axis=1) + (1*pred_out.std(axis=1))),'confident_calls'].astype(str) + '_uncertain'
+    pred_out["confident_calls"] = pred_out["predicted"]
+    pred_out.loc[
+        pred_out.max(axis=1) < (pred_out.mean(axis=1) + (1 * pred_out.std(axis=1))),
+        "confident_calls",
+    ] = (
+        pred_out.loc[
+            pred_out.max(axis=1) < (pred_out.mean(axis=1) + (1 * pred_out.std(axis=1))),
+            "confident_calls",
+        ].astype(str)
+        + "_uncertain"
+    )
     # means_ = self.model.scaler.mean_[lr_idx] if self.model.scaler.with_mean else 0
-    return(pred_out,train_x,model_lr,adata_temp)
+    return (pred_out, train_x, model_lr, adata_temp)
+
 
 # Modified LR train module, does not work with low-dim by default anymore, please use low-dim adapter
-def LR_train(adata, train_x_partition, train_label, penalty='elasticnet', sparcity=0.2,max_iter=200,l1_ratio =0.2,tune_hyper_params =False,n_splits=5, n_repeats=3,l1_grid = [0.01,0.2,0.5,0.8], c_grid = [0.01,0.2,0.4,0.6], thread_num = -1,sketch_tune = False, **kwargs):
+def LR_train(
+    adata,
+    train_x_partition,
+    train_label,
+    penalty="elasticnet",
+    sparcity=0.2,
+    max_iter=200,
+    l1_ratio=0.2,
+    tune_hyper_params=False,
+    n_splits=5,
+    n_repeats=3,
+    l1_grid=[0.01, 0.2, 0.5, 0.8],
+    c_grid=[0.01, 0.2, 0.4, 0.6],
+    thread_num=-1,
+    sketch_tune=False,
+    **kwargs,
+):
     """
     General description.
 
@@ -208,55 +199,94 @@ def LR_train(adata, train_x_partition, train_label, penalty='elasticnet', sparci
     Returns:
 
     """
-    #unpack kwargs
+    # unpack kwargs
     if kwargs:
         for key, value in kwargs.items():
             globals()[key] = value
         kwargs.update(locals())
         print(sparcity)
     if tune_hyper_params == True:
-#         results = tune_lr_model(adata, train_x_partition = train_x_partition, random_state = 42, penalty=penalty, sparcity=sparcity,train_label = train_label, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid,**kwargs)
-        results = tune_lr_model(random_state = 42,**kwargs)
-        print('hyper_params tuned')
+        #         results = tune_lr_model(adata, train_x_partition = train_x_partition, random_state = 42, penalty=penalty, sparcity=sparcity,train_label = train_label, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid,**kwargs)
+        results = tune_lr_model(random_state=42, **kwargs)
+        print("hyper_params tuned")
         print(results.best_params_)
-        sparcity = results.best_params_['C']
-        l1_ratio = results.best_params_['l1_ratio']
-    
-    lr = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  max_iter, n_jobs=thread_num)
-    if (penalty == "l1"):
-        lr = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  max_iter, dual = True, solver = 'liblinear',multi_class = 'ovr', n_jobs=thread_num ) # one-vs-rest
-    if (penalty == "elasticnet"):
-        lr = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  max_iter, dual=False,solver = 'saga',l1_ratio=l1_ratio,multi_class = 'ovr', n_jobs=thread_num)
-    if train_x_partition == 'X':
+        sparcity = results.best_params_["C"]
+        l1_ratio = results.best_params_["l1_ratio"]
+
+    lr = LogisticRegression(
+        penalty=penalty, C=sparcity, max_iter=max_iter, n_jobs=thread_num
+    )
+    if penalty == "l1":
+        lr = LogisticRegression(
+            penalty=penalty,
+            C=sparcity,
+            max_iter=max_iter,
+            dual=True,
+            solver="liblinear",
+            multi_class="ovr",
+            n_jobs=thread_num,
+        )  # one-vs-rest
+    if penalty == "elasticnet":
+        lr = LogisticRegression(
+            penalty=penalty,
+            C=sparcity,
+            max_iter=max_iter,
+            dual=False,
+            solver="saga",
+            l1_ratio=l1_ratio,
+            multi_class="ovr",
+            n_jobs=thread_num,
+        )
+    if train_x_partition == "X":
         subset_train = adata.obs.index
         # Define training parameters
         train_label = adata.obs[train_label].values
-#        predict_label = train_label[subset_predict]
-#        train_label = train_label[subset_train]
-        train_x = adata.X#[adata.obs.index.isin(list(adata.obs[subset_train].index))]
+        #        predict_label = train_label[subset_predict]
+        #        train_label = train_label[subset_train]
+        train_x = adata.X  # [adata.obs.index.isin(list(adata.obs[subset_train].index))]
         model = lr.fit(train_x, train_label)
         model.features = np.array(adata.var.index)
-#        predict_x = adata.X[adata.obs.index.isin(list(adata.obs[subset_predict].index))]
+    #        predict_x = adata.X[adata.obs.index.isin(list(adata.obs[subset_predict].index))]
     elif train_x_partition in adata.obsm.keys():
         # Define training parameters
         train_label = adata.obs[train_label].values
-#        predict_label = train_label[subset_predict]
-#         train_label = train_label[subset_train]
+        #        predict_label = train_label[subset_predict]
+        #         train_label = train_label[subset_train]
         train_x = adata.obsm[train_x_partition]
-#        predict_x = train_x_partition
-#        train_x_partition = train_x_partition[subset_train, :]
+        #        predict_x = train_x_partition
+        #        train_x_partition = train_x_partition[subset_train, :]
         # Define prediction parameters
-#        predict_x = predict_x[subset_predict]
-#        predict_x = pd.DataFrame(predict_x)
-#        predict_x.index = adata.obs[subset_predict].index
-    # Train predictive model using user defined partition labels (train_x_partition ,train_label, predict_x)
-    #model = lr.fit(train_x, train_label)
+        #        predict_x = predict_x[subset_predict]
+        #        predict_x = pd.DataFrame(predict_x)
+        #        predict_x.index = adata.obs[subset_predict].index
+        # Train predictive model using user defined partition labels (train_x_partition ,train_label, predict_x)
+        # model = lr.fit(train_x, train_label)
         model = lr.fit(train_x, train_label)
-        model.features = np.array(list(range(0,(adata.obsm[train_x_partition]).shape[1])))
-    #model.features = np.array(adata.var.index)
+        model.features = np.array(
+            list(range(0, (adata.obsm[train_x_partition]).shape[1]))
+        )
+    # model.features = np.array(adata.var.index)
     return model
 
-def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_opt=True, penalty='elasticnet', sparcity = 0.2,l1_ratio=0.5,train_label = None, n_splits=5, n_repeats=3,l1_grid = [0.1,0.2,0.5,0.8], c_grid = [0.1,0.2,0.4,0.6],thread_num = -1,loss= 'logloss',sketch_tune = False, **kwargs):
+
+def tune_lr_model(
+    adata,
+    train_x_partition="X",
+    random_state=42,
+    use_bayes_opt=True,
+    penalty="elasticnet",
+    sparcity=0.2,
+    l1_ratio=0.5,
+    train_label=None,
+    n_splits=5,
+    n_repeats=3,
+    l1_grid=[0.1, 0.2, 0.5, 0.8],
+    c_grid=[0.1, 0.2, 0.4, 0.6],
+    thread_num=-1,
+    loss="logloss",
+    sketch_tune=False,
+    **kwargs,
+):
     """
     General description.
 
@@ -266,16 +296,13 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
 
     """
     from sklearn.gaussian_process.kernels import RBF
-    from numpy import arange
-    from sklearn.model_selection import RepeatedKFold
-    from sklearn.datasets import make_classification
     from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import train_test_split
-    from sklearn.metrics import f1_score
     from sklearn.model_selection import GridSearchCV
     from skopt import BayesSearchCV
+
     import scentinel as scent
-    #unpack kwargs
+
+    # unpack kwargs
     if kwargs:
         for key, value in kwargs.items():
             globals()[key] = value
@@ -285,97 +312,179 @@ def tune_lr_model(adata, train_x_partition = 'X', random_state = 42, use_bayes_o
     if train_x_partition in adata.obsm.keys():
         tune_train_x = adata.obsm[train_x_partition]
         if sketch_tune == True:
-            lvg = scent.bless(tune_train_x, RBF(length_scale=20), lam_final = 2, qbar = 2, random_state = r, H = 10, force_cpu=True)
-        #     try:
-        #         import cupy
-        #         lvg_2 = bless(adata.obsm[train_x_partition], RBF(length_scale=10), 10, 10, r, 10, force_cpu=False)
-        #     except ImportError:
-        #         print("cupy not found, defaulting to numpy")
+            lvg = scent.bless(
+                tune_train_x,
+                RBF(length_scale=20),
+                lam_final=2,
+                qbar=2,
+                random_state=r,
+                H=10,
+                force_cpu=True,
+            )
+            #     try:
+            #         import cupy
+            #         lvg_2 = bless(adata.obsm[train_x_partition], RBF(length_scale=10), 10, 10, r, 10, force_cpu=False)
+            #     except ImportError:
+            #         print("cupy not found, defaulting to numpy")
             adata_tuning = adata[lvg.idx]
             tune_train_x = adata_tuning.obsm[train_x_partition][:]
         else:
             adata_tuning = adata
             tune_train_x = adata_tuning.obsm[train_x_partition][:]
-            
+
     else:
-        print('no latent representation provided, random sampling instead')
+        print("no latent representation provided, random sampling instead")
         prop = 0.1
         random_vertices = []
         n_ixs = int(len(adata.obs) * prop)
         random_vertices = random.sample(list(range(len(adata.obs))), k=n_ixs)
         adata_tuning = adata[random_vertices]
         tune_train_x = adata_tuning.X
-        
-    if not train_label == None:
+
+    if train_label is not None:
         tune_train_label = adata_tuning.obs[train_label]
-    elif train_label == None:
+    elif train_label is None:
         try:
-            print('no training labels provided, defaulting to unsuperived leiden clustering, updates will change this to voronoi greedy sampling')
+            print(
+                "no training labels provided, defaulting to unsuperived leiden clustering, updates will change this to voronoi greedy sampling"
+            )
             sc.tl.leiden(adata_tuning)
         except:
-            print('no training labels provided, no neighbors, defaulting to unsuperived leiden clustering, updates will change this to voronoi greedy sampling')
+            print(
+                "no training labels provided, no neighbors, defaulting to unsuperived leiden clustering, updates will change this to voronoi greedy sampling"
+            )
             sc.pp.neighbors(adata_tuning, n_neighbors=15, n_pcs=50)
             sc.tl.leiden(adata_tuning)
-        tune_train_label = adata_tuning.obs['leiden']
+        tune_train_label = adata_tuning.obs["leiden"]
     ## tune regularization for multinomial logistic regression
-    print('starting tuning loops')
+    print("starting tuning loops")
     X = tune_train_x
     y = tune_train_label
-    #model = LogisticRegression(penalty = penalty, max_iter =  200, dual=False,solver = 'saga', multi_class = 'multinomial',)
-    model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  150, n_jobs=thread_num)
-    if (penalty == "l1"):
-        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  150, dual = True, solver = 'liblinear',multi_class = 'multinomial', n_jobs=thread_num ) # one-vs-rest
-    if (penalty == "elasticnet"):
-        model = LogisticRegression(penalty = penalty, C = sparcity, max_iter =  150, dual=False,solver = 'saga',l1_ratio=l1_ratio,multi_class = 'multinomial', n_jobs=thread_num) # use multinomial class if probabilities are descrete
-        
+    # model = LogisticRegression(penalty = penalty, max_iter =  200, dual=False,solver = 'saga', multi_class = 'multinomial',)
+    model = LogisticRegression(
+        penalty=penalty, C=sparcity, max_iter=150, n_jobs=thread_num
+    )
+    if penalty == "l1":
+        model = LogisticRegression(
+            penalty=penalty,
+            C=sparcity,
+            max_iter=150,
+            dual=True,
+            solver="liblinear",
+            multi_class="multinomial",
+            n_jobs=thread_num,
+        )  # one-vs-rest
+    if penalty == "elasticnet":
+        model = LogisticRegression(
+            penalty=penalty,
+            C=sparcity,
+            max_iter=150,
+            dual=False,
+            solver="saga",
+            l1_ratio=l1_ratio,
+            multi_class="multinomial",
+            n_jobs=thread_num,
+        )  # use multinomial class if probabilities are descrete
+
     grid = dict()
-    grid['l1_ratio'] = l1_grid
-    grid['C'] = c_grid
+    grid["l1_ratio"] = l1_grid
+    grid["C"] = c_grid
     # define cv grid
-    cv = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
-    
+    cv = RepeatedStratifiedKFold(
+        n_splits=n_splits, n_repeats=n_repeats, random_state=random_state
+    )
+
     # Define loss function
     LogLoss = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
-    if use_bayes_opt == True:
+    if use_bayes_opt:
         # define search space
-        search_space = {'C': (np.min(c_grid), np.max(c_grid), 'log-uniform'), 
-                        'l1_ratio': (np.min(l1_grid), np.max(l1_grid), 'uniform') if 'elasticnet' in penalty else None}
+        search_space = {
+            "C": (np.min(c_grid), np.max(c_grid), "log-uniform"),
+            "l1_ratio": (
+                (np.min(l1_grid), np.max(l1_grid), "uniform")
+                if "elasticnet" in penalty
+                else None
+            ),
+        }
         # define search
-        if loss == 'logloss':
-            search = BayesSearchCV(model, search_space, scoring=LogLoss, cv=cv, n_jobs=-thread_num, verbose=1)
+        if loss == "logloss":
+            search = BayesSearchCV(
+                model,
+                search_space,
+                scoring=LogLoss,
+                cv=cv,
+                n_jobs=-thread_num,
+                verbose=1,
+            )
         else:
-            search = BayesSearchCV(model, search_space, scoring=loss, cv=cv, n_jobs=-thread_num, verbose=1)
+            search = BayesSearchCV(
+                model, search_space, scoring=loss, cv=cv, n_jobs=-thread_num, verbose=1
+            )
         # perform the search
         results = search.fit(X, y)
         # Plot Bayesian optimization iterations
         plt.figure(figsize=(10, 6))
-        plt.plot(range(len(results.cv_results_['mean_test_score'])), results.cv_results_['mean_test_score'])
-        plt.xlabel('Iteration')
-        plt.ylabel('Mean Cross-Entropy loss')
-        plt.title('Bayesian Optimization Iterations')
+        plt.plot(
+            range(len(results.cv_results_["mean_test_score"])),
+            results.cv_results_["mean_test_score"],
+        )
+        plt.xlabel("Iteration")
+        plt.ylabel("Mean Cross-Entropy loss")
+        plt.title("Bayesian Optimization Iterations")
         # Find the best iteration
-        best_iteration = np.argmax(results.cv_results_['mean_test_score'])
-        best_score = results.cv_results_['mean_test_score'][best_iteration]
+        best_iteration = np.argmax(results.cv_results_["mean_test_score"])
+        best_score = results.cv_results_["mean_test_score"][best_iteration]
         # Mark the best iteration
-        plt.scatter(best_iteration, best_score, marker='o', color='red', label='Best Iteration C:{} gamma:{}'.format(best_params['C'],best_params['gamma']))
+        plt.scatter(
+            best_iteration,
+            best_score,
+            marker="o",
+            color="red",
+            label="Best Iteration C:{} gamma:{}".format(
+                results.best_params_["C"], results.best_params_["gamma"]
+            ),
+        )
         plt.legend()
         plt.grid(True)
         plt.show()
-        
+
     else:
         # define search
-        if loss == 'logloss':
-            search = GridSearchCV(model, grid, scoring=LogLoss, cv=cv, n_jobs=thread_num, verbose=1)
+        if loss == "logloss":
+            search = GridSearchCV(
+                model, grid, scoring=LogLoss, cv=cv, n_jobs=thread_num, verbose=1
+            )
         else:
-            search = GridSearchCV(model, grid, scoring=loss, cv=cv, n_jobs=thread_num, verbose=1)#'neg_mean_absolute_error'
+            search = GridSearchCV(
+                model, grid, scoring=loss, cv=cv, n_jobs=thread_num, verbose=1
+            )  #'neg_mean_absolute_error'
         # perform the search
         results = search.fit(X, y)
     # summarize
-#     print('MAE: %.3f' % results.best_score_)
-#     print('Config: %s' % results.best_params_)
+    #     print('MAE: %.3f' % results.best_score_)
+    #     print('Config: %s' % results.best_params_)
     return results
 
-def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correction=False, var_length = 7500,penalty='elasticnet',sparcity=0.2,max_iter = 500,l1_ratio = 0.1,partial_scale=True,train_x_partition ='X',theta = 3,tune_hyper_params=False,thread_num = -1,sketch_tune = False, **kwargs):
+
+def prep_training_data(
+    adata_temp,
+    feat_use,
+    batch_key,
+    model_key,
+    batch_correction=False,
+    var_length=7500,
+    penalty="elasticnet",
+    sparcity=0.2,
+    max_iter=500,
+    l1_ratio=0.1,
+    partial_scale=True,
+    train_x_partition="X",
+    theta=3,
+    tune_hyper_params=False,
+    thread_num=-1,
+    sketch_tune=False,
+    **kwargs,
+):
     """
     General description.
 
@@ -384,57 +493,63 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
     Returns:
 
     """
-    #unpack kwargs
+    # unpack kwargs
     if kwargs:
         for key, value in kwargs.items():
             globals()[key] = value
         kwargs.update(locals())
         print(sparcity)
-    model_name = model_key + '_lr_model'
-    #scale the input data
+    model_name = model_key + "_lr_model"
+    # scale the input data
     if partial_scale == True:
-        print('scaling input data, default option is to use incremental learning and fit in mini bulks!')
-        print('performing highly variable gene selection')
-        sc.pp.highly_variable_genes(adata_temp, batch_key = batch_key, subset=False)
-        adata_temp = subset_top_hvgs(adata_temp,var_length)
+        print(
+            "scaling input data, default option is to use incremental learning and fit in mini bulks!"
+        )
+        print("performing highly variable gene selection")
+        sc.pp.highly_variable_genes(adata_temp, batch_key=batch_key, subset=False)
+        adata_temp = subset_top_hvgs(adata_temp, var_length)
         # Partial scaling alg
-        #adata_temp.X = (adata_temp.X)
+        # adata_temp.X = (adata_temp.X)
         scaler = StandardScaler(with_mean=False)
         n = adata_temp.X.shape[0]  # number of rows
         # set dyn scale packet size
         x_len = len(adata_temp.var)
         y_len = len(adata_temp.obs)
         if y_len < 100000:
-            dyn_pack = int(x_len/10)
+            dyn_pack = int(x_len / 10)
             pack_size = dyn_pack
         else:
             # 10 pack for every 100,000
-            dyn_pack = int((y_len/100000)*10)
-            pack_size = int(x_len/dyn_pack)
-        batch_size =  1000#pack_size#500  # number of rows in each call to partial_fit
+            dyn_pack = int((y_len / 100000) * 10)
+            pack_size = int(x_len / dyn_pack)
+        batch_size = 1000  # pack_size#500  # number of rows in each call to partial_fit
         index = 0  # helper-var
         while index < n:
-            partial_size = min(batch_size, n - index)  # needed because last loop is possibly incomplete
-            partial_x = adata_temp.X[index:index+partial_size]
+            partial_size = min(
+                batch_size, n - index
+            )  # needed because last loop is possibly incomplete
+            partial_x = adata_temp.X[index : index + partial_size]
             scaler.partial_fit(partial_x)
             index += partial_size
         adata_temp.X = scaler.transform(adata_temp.X)
-#     else:
-#         sc.pp.scale(adata_temp, zero_center=True, max_value=None, copy=False, layer=None, obsm=None)
-    if (train_x_partition != 'X') & (train_x_partition not in adata_temp.obsm.keys()):
-        print('train partition is not in OBSM, defaulting to PCA')
-        print('performing highly variable gene selection')
-        sc.pp.highly_variable_genes(adata_temp, batch_key = batch_key, subset=False)
-        adata_temp = subset_top_hvgs(adata_temp,var_length)
+    #     else:
+    #         sc.pp.scale(adata_temp, zero_center=True, max_value=None, copy=False, layer=None, obsm=None)
+    if (train_x_partition != "X") & (train_x_partition not in adata_temp.obsm.keys()):
+        print("train partition is not in OBSM, defaulting to PCA")
+        print("performing highly variable gene selection")
+        sc.pp.highly_variable_genes(adata_temp, batch_key=batch_key, subset=False)
+        adata_temp = subset_top_hvgs(adata_temp, var_length)
         # Now compute PCA
-        sc.pp.pca(adata_temp, n_comps=100, use_highly_variable=True, svd_solver='arpack')
-        sc.pl.pca_variance_ratio(adata_temp, log=True,n_pcs=100)
-        
+        sc.pp.pca(
+            adata_temp, n_comps=100, use_highly_variable=True, svd_solver="arpack"
+        )
+        sc.pl.pca_variance_ratio(adata_temp, log=True, n_pcs=100)
+
         # Batch correction options
-        # The script will test later which Harmony values we should use 
-        if(batch_correction == "Harmony"):
+        # The script will test later which Harmony values we should use
+        if batch_correction == "Harmony":
             print("Commencing harmony")
-            adata_temp.obs['lr_batch'] = adata_temp.obs[batch_key]
+            adata_temp.obs["lr_batch"] = adata_temp.obs[batch_key]
             batch_var = "lr_batch"
             # Create hm subset
             adata_hm = adata_temp[:]
@@ -443,39 +558,51 @@ def prep_training_data(adata_temp,feat_use,batch_key, model_key, batch_correctio
             meta_data = adata_hm.obs
             vars_use = [batch_var]
             # Run Harmony
-            ho = hm.run_harmony(data_mat, meta_data, vars_use,theta=theta)
+            ho = hm.run_harmony(data_mat, meta_data, vars_use, theta=theta)
             res = (pd.DataFrame(ho.Z_corr)).T
-            res.columns = ['X{}'.format(i + 1) for i in range(res.shape[1])]
+            res.columns = ["X{}".format(i + 1) for i in range(res.shape[1])]
             # Insert coordinates back into object
-            adata_hm.obsm["X_pca_back"]= adata_hm.obsm["X_pca"][:]
+            adata_hm.obsm["X_pca_back"] = adata_hm.obsm["X_pca"][:]
             adata_hm.obsm["X_pca"] = np.array(res)
             # Run neighbours
-            #sc.pp.neighbors(adata_hm, n_neighbors=15, n_pcs=50)
+            # sc.pp.neighbors(adata_hm, n_neighbors=15, n_pcs=50)
             adata_temp = adata_hm[:]
             del adata_hm
-        elif(batch_correction == "BBKNN"):
+        elif batch_correction == "BBKNN":
             print("Commencing BBKNN")
-            sc.external.pp.bbknn(adata_temp, batch_key=batch_var, approx=True, metric='angular', copy=False, n_pcs=50, trim=None, n_trees=10, use_faiss=True, set_op_mix_ratio=1.0, local_connectivity=15) 
-        print("adata1 and adata2 are now combined and preprocessed in 'adata' obj - success!")
-
+            sc.external.pp.bbknn(
+                adata_temp,
+                batch_key=batch_var,
+                approx=True,
+                metric="angular",
+                copy=False,
+                n_pcs=50,
+                trim=None,
+                n_trees=10,
+                use_faiss=True,
+                set_op_mix_ratio=1.0,
+                local_connectivity=15,
+            )
+        print(
+            "adata1 and adata2 are now combined and preprocessed in 'adata' obj - success!"
+        )
 
     # train model
-#    train_x = adata_temp.X
-    #train_label = adata_temp.obs[feat_use]
-    print('proceeding to train model')
-#     # Explixitly extract arguments that also exist in tune_lr_model from kwargs
-#     LR_train_kwargs = {key: kwargs[key] for key in ['train_x_partition', 'random_state', 'use_bayes_opt', 'train_labels', 'n_splits', 'n_repeats', 'l1_grid', 'c_grid', 'thread_num'] if key in kwargs}
+    #    train_x = adata_temp.X
+    # train_label = adata_temp.obs[feat_use]
+    print("proceeding to train model")
+    #     # Explixitly extract arguments that also exist in tune_lr_model from kwargs
+    #     LR_train_kwargs = {key: kwargs[key] for key in ['train_x_partition', 'random_state', 'use_bayes_opt', 'train_labels', 'n_splits', 'n_repeats', 'l1_grid', 'c_grid', 'thread_num'] if key in kwargs}
     # update all local kwargs
-    
-#      model = LR_train(adata_temp, train_x = train_x_partition, train_label=feat_use, penalty=penalty, sparcity=sparcity,max_iter=max_iter,l1_ratio = l1_ratio,tune_hyper_params = tune_hyper_params)
-#     model.features = list(adata_temp.var.index)
-    
-    train_x = train_x_partition
-    train_label = feat_use
+
+    #      model = LR_train(adata_temp, train_x = train_x_partition, train_label=feat_use, penalty=penalty, sparcity=sparcity,max_iter=max_iter,l1_ratio = l1_ratio,tune_hyper_params = tune_hyper_params)
+    #     model.features = list(adata_temp.var.index)
+
     kwargs.update(locals())
-    model = LR_train(adata = adata_temp, **kwargs)
-#    model.features = list(adata_temp.var.index)
+    model = LR_train(adata=adata_temp, **kwargs)
+    #    model.features = list(adata_temp.var.index)
     return model
+
 
 def compute_weighted_impact(varm_file, top_loadings, threshold=0.05, **kwargs):
     """
@@ -490,7 +617,7 @@ def compute_weighted_impact(varm_file, top_loadings, threshold=0.05, **kwargs):
     Returns:
     top_loadings_lowdim (pd.DataFrame): A dataframe containing the top weighted impacts for each class.
     """
-    #unpack kwargs
+    # unpack kwargs
     if kwargs:
         locals().update(kwargs)
     kwargs.update(locals())
@@ -498,41 +625,72 @@ def compute_weighted_impact(varm_file, top_loadings, threshold=0.05, **kwargs):
     model_varm = pd.read_csv(varm_file, index_col=0)
 
     # Map the feature names to the column names of the variable loadings
-    feature_set = dict(zip(sorted(top_loadings['feature'].unique()), model_varm.columns))
+    feature_set = dict(
+        zip(sorted(top_loadings["feature"].unique()), model_varm.columns)
+    )
 
     # Melt the variable loadings dataframe and add a column for p-values
-    varm_melt = pd.melt(model_varm.reset_index(), id_vars='index')
-    varm_melt['pvals'] = np.nan
+    varm_melt = pd.melt(model_varm.reset_index(), id_vars="index")
+    varm_melt["pvals"] = np.nan
 
     # Compute the p-values for each variable
-    for variable in varm_melt['variable'].unique():
-        varm_loadings = varm_melt[varm_melt['variable'] == variable]
-        med = np.median(varm_loadings['value'])
-        mad = np.median(np.abs(varm_loadings['value'] - med))
-        pvals = scipy.stats.norm.sf(varm_loadings['value'], loc=med, scale=1.4826*mad)
-        varm_melt.loc[varm_melt['variable'] == variable, 'pvals'] = pvals
+    for variable in varm_melt["variable"].unique():
+        varm_loadings = varm_melt[varm_melt["variable"] == variable]
+        med = np.median(varm_loadings["value"])
+        mad = np.median(np.abs(varm_loadings["value"] - med))
+        pvals = scipy.stats.norm.sf(varm_loadings["value"], loc=med, scale=1.4826 * mad)
+        varm_melt.loc[varm_melt["variable"] == variable, "pvals"] = pvals
 
     # Filter the variables based on the p-value threshold
-    varm_sig = varm_melt[varm_melt['pvals'] < threshold]
+    varm_sig = varm_melt[varm_melt["pvals"] < threshold]
 
     # Compute the weighted impact for each feature of each class
-    top_loadings_lowdim = pd.DataFrame(columns=['class', 'feature', 'weighted_impact', 'e^coef_pval', 'e^coef', 'is_significant_sf'])
-    top_loadings_lw = top_loadings.groupby('class').head(10)
-    top_loadings_lw['feature'] = top_loadings_lw['feature'].map(feature_set)
+    top_loadings_lowdim = pd.DataFrame(
+        columns=[
+            "class",
+            "feature",
+            "weighted_impact",
+            "e^coef_pval",
+            "e^coef",
+            "is_significant_sf",
+        ]
+    )
+    top_loadings_lw = top_loadings.groupby("class").head(10)
+    top_loadings_lw["feature"] = top_loadings_lw["feature"].map(feature_set)
 
-    for classes in top_loadings_lw['class'].unique():
-        for feature in top_loadings_lw.loc[top_loadings_lw['class'] == classes, ['feature', 'e^coef']].values:
-            temp_varm_sig = varm_sig[varm_sig['variable'] == feature[0]]
-            temp_varm_sig['weighted_impact'] = temp_varm_sig['value'] * feature[1]
-            temp_varm_sig = temp_varm_sig[['index', 'weighted_impact']]
-            temp_varm_sig.columns = ['feature', 'weighted_impact']
-            temp_varm_sig['class'] = classes
-            temp_varm_sig['e^coef_pval'] = top_loadings_lw.loc[(top_loadings_lw['class'] == classes) & (top_loadings_lw['feature'] == feature[0]), 'e^coef_pval'].values[0]
-            temp_varm_sig['e^coef'] = top_loadings_lw.loc[(top_loadings_lw['class'] == classes) & (top_loadings_lw['feature'] == feature[0]), 'e^coef'].values[0]
-            temp_varm_sig['is_significant_sf'] = top_loadings_lw.loc[(top_loadings_lw['class'] == classes) & (top_loadings_lw['feature'] == feature[0]), 'is_significant_sf'].values[0]
-            top_loadings_lowdim = pd.concat([top_loadings_lowdim, temp_varm_sig], ignore_index=True)
+    for classes in top_loadings_lw["class"].unique():
+        for feature in top_loadings_lw.loc[
+            top_loadings_lw["class"] == classes, ["feature", "e^coef"]
+        ].values:
+            temp_varm_sig = varm_sig[varm_sig["variable"] == feature[0]]
+            temp_varm_sig["weighted_impact"] = temp_varm_sig["value"] * feature[1]
+            temp_varm_sig = temp_varm_sig[["index", "weighted_impact"]]
+            temp_varm_sig.columns = ["feature", "weighted_impact"]
+            temp_varm_sig["class"] = classes
+            temp_varm_sig["e^coef_pval"] = top_loadings_lw.loc[
+                (top_loadings_lw["class"] == classes)
+                & (top_loadings_lw["feature"] == feature[0]),
+                "e^coef_pval",
+            ].values[0]
+            temp_varm_sig["e^coef"] = top_loadings_lw.loc[
+                (top_loadings_lw["class"] == classes)
+                & (top_loadings_lw["feature"] == feature[0]),
+                "e^coef",
+            ].values[0]
+            temp_varm_sig["is_significant_sf"] = top_loadings_lw.loc[
+                (top_loadings_lw["class"] == classes)
+                & (top_loadings_lw["feature"] == feature[0]),
+                "is_significant_sf",
+            ].values[0]
+            top_loadings_lowdim = pd.concat(
+                [top_loadings_lowdim, temp_varm_sig], ignore_index=True
+            )
     # Return the top 100 features with the highest weighted impact for each class
-    top_loadings_lowdim = top_loadings_lowdim.sort_values('weighted_impact', ascending=False).groupby('class').head(100)
+    top_loadings_lowdim = (
+        top_loadings_lowdim.sort_values("weighted_impact", ascending=False)
+        .groupby("class")
+        .head(100)
+    )
     return top_loadings_lowdim
 
 
@@ -543,12 +701,14 @@ def get_binary_neigh_matrix(connectivities):
     """
     return (connectivities > 0).astype(int)
 
+
 def get_label_counts(neigh_matrix, labels):
     """
     General description.
     Counts the number of occurrences of each label in the neighborhood of each cell.
     """
     return pd.DataFrame(neigh_matrix.T.dot(pd.get_dummies(labels)))
+
 
 def compute_dist_entropy_product(neigh_membership, labels, dist_matrix):
     """
@@ -570,6 +730,7 @@ def compute_dist_entropy_product(neigh_membership, labels, dist_matrix):
 
     return dist_entropy_product
 
+
 class WeightsOutput:
     def __init__(self, weights, rhats, means, sds):
         """
@@ -585,6 +746,7 @@ class WeightsOutput:
         self.means = means
         self.sds = sds
 
+
 def compute_weights(adata, use_rep, original_labels_col, predicted_labels_col):
     """
     General description.
@@ -596,16 +758,17 @@ def compute_weights(adata, use_rep, original_labels_col, predicted_labels_col):
     """
     # Extract the necessary data from the anndata object
     obs_met = adata.obs
-    neigh_membership = get_binary_neigh_matrix(adata.obsp[adata.uns[use_rep]['connectivities_key']])
+    neigh_membership = get_binary_neigh_matrix(
+        adata.obsp[adata.uns[use_rep]["connectivities_key"]]
+    )
     original_labels = obs_met[original_labels_col]
     predicted_labels = obs_met[predicted_labels_col]
-    dist_matrix = adata.obsp[adata.uns[use_rep]['distances_key']]
-
-    # Compute the 'distance-entropy' product for each cell and each label
-    dist_entropy_product = compute_dist_entropy_product(neigh_membership, predicted_labels, dist_matrix)
+    dist_matrix = adata.obsp[adata.uns[use_rep]["distances_key"]]
 
     # Compute the 'distance-entropy' product for the original labels
-    dist_entropy_product_orig = compute_dist_entropy_product(neigh_membership, original_labels, dist_matrix)
+    dist_entropy_product_orig = compute_dist_entropy_product(
+        neigh_membership, original_labels, dist_matrix
+    )
 
     weights = {}
     rhat_values = {}
@@ -618,32 +781,40 @@ def compute_weights(adata, use_rep, original_labels_col, predicted_labels_col):
         orig_pos = obs_met[original_labels_col].isin([label])
         pred_pos = obs_met[predicted_labels_col].isin([label])
         with pm.Model() as model:
-            #priors
-            mu = pm.Normal('mu', mu=dist_entropy_product_orig[orig_pos.values].mean(), sd=dist_entropy_product_orig[orig_pos.values].std())
-            sd = pm.HalfNormal('sd', sd=dist_entropy_product_orig[orig_pos.values].std())
-            #observations
-            obs = pm.Normal('obs', mu=mu, sd=sd, observed=dist_entropy_product_orig[pred_pos.values])
-#             if len(orig_pos) > 10000:
-#                 samp_rate = 0.1
-#                 smp = int(len(orig_pos)*samp_rate)
-#                 tne = int(len(orig_pos)*samp_rate)/2
-#                 trace = pm.sample(smp, tune=tne)
-#             else:
+            # priors
+            mu = pm.Normal(
+                "mu",
+                mu=dist_entropy_product_orig[orig_pos.values].mean(),
+                sd=dist_entropy_product_orig[orig_pos.values].std(),
+            )
+            sd = pm.HalfNormal(
+                "sd", sd=dist_entropy_product_orig[orig_pos.values].std()
+            )
+            # observations
+            obs = pm.Normal(
+                "obs", mu=mu, sd=sd, observed=dist_entropy_product_orig[pred_pos.values]
+            )
+            #             if len(orig_pos) > 10000:
+            #                 samp_rate = 0.1
+            #                 smp = int(len(orig_pos)*samp_rate)
+            #                 tne = int(len(orig_pos)*samp_rate)/2
+            #                 trace = pm.sample(smp, tune=tne)
+            #             else:
             trace = pm.sample(1000, tune=500)
         # Compute R-hat for this label
         rhat = pm.rhat(trace)
         rhat_values[label] = {var: rhat[var].data for var in rhat.variables}
         # Compute the mean and the standard deviation of the posterior distribution for this label
-        mean_posterior = pm.summary(trace)['mean']['mu']
-        sd_posterior = pm.summary(trace)['sd']['sd']
+        mean_posterior = pm.summary(trace)["mean"]["mu"]
+        sd_posterior = pm.summary(trace)["sd"]["sd"]
         sds.append(sd_posterior)
         means.append(mean_posterior)
-        
+
     # Mean posterior probabilitty models the stability of a label given entropy_distance measures within it's neighborhood
     max_mean = max(means)
     # SD here models the uncertainty of label entropy_distance measures
     max_sd = max(sds)  # Compute the maximum standard deviation
-    
+
     # Compute the weights as the sum of the normalized mean and the normalized standard deviation. This makes each weight relative to each other
     # shift all weights up by epiislon constant
     epsilon = 0.01
@@ -651,6 +822,7 @@ def compute_weights(adata, use_rep, original_labels_col, predicted_labels_col):
         weights[label] = (1 - mean / max_mean) * (1 - sd / max_sd) + epsilon
 
     return WeightsOutput(weights, rhat_values, means, sds)
+
 
 def apply_weights(prob_df, weights):
     """
