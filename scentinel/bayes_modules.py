@@ -20,6 +20,7 @@
 # libraries
 
 import gc
+import logging
 import math
 import warnings
 from collections import Counter
@@ -100,13 +101,13 @@ def regression_results(df, true_label, pred_label, pred_columns):
     mean_squared_log_error = metrics.mean_squared_log_error(y_true, y_pred)
     median_absolute_error = metrics.median_absolute_error(y_true, y_pred)
     #     r2=metrics.r2_score(y_true, y_pred)
-    print("Cross entropy loss: ", round(loss, 4))
-    print("mean_squared_log_error: ", round(mean_squared_log_error, 4))
-    print("MAE: ", round(mean_absolute_error, 4))
-    print("MSE: ", round(mse, 4))
-    print("RMSE: ", round(np.sqrt(mse), 4))
-    print("label Cross entropy loss: ")
-    print(log_losses)
+    logging.info("Cross entropy loss: ", round(loss, 4))
+    logging.info("mean_squared_log_error: ", round(mean_squared_log_error, 4))
+    logging.info("MAE: ", round(mean_absolute_error, 4))
+    logging.info("MSE: ", round(mse, 4))
+    logging.info("RMSE: ", round(np.sqrt(mse), 4))
+    logging.info("label Cross entropy loss: ")
+    logging.info(log_losses)
     return loss, log_losses, weights
 
 
@@ -127,20 +128,20 @@ def V0_3_empirical_bayes_balanced_stratified_KNN_sampling(
         for key, value in kwargs.items():
             globals()[key] = value
         kwargs.update(locals())
-    #     print(locals())
+    #     logging.info(locals())
 
     if equal_allocation:
-        print(
+        logging.info(
             "You are using an equal allocation mode of sampling, be warned that this can cause errors if the smaller populations are insufficient in number, consider replace == True"
         )
 
     if replace == True:
-        print(
+        logging.info(
             "You are using sampling with replacement, this allows the model to create clones of cells"
         )
 
     if representation_priority < 0.6:
-        print(
+        logging.info(
             "warning: you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states"
         )
         warnings.warn(
@@ -174,7 +175,7 @@ def V0_3_empirical_bayes_balanced_stratified_KNN_sampling(
     sample_size_per_label = total_sample_size // len(unique_labels)
 
     if weight_penalty == "entropy_distance":
-        print(
+        logging.info(
             "Using distance-entropy penalisation weights, this module is multi-threaded and quite compute intensive. If facing issues, use connectivity_ratio instead"
         )
         # Calculate entropy for each neighborhood in advance
@@ -199,7 +200,7 @@ def V0_3_empirical_bayes_balanced_stratified_KNN_sampling(
     neighborhood_entropies_iter = {label: [] for label in range(len(unique_labels))}
     sampling_probabilities_over_iterations = np.zeros((iterations, len(unique_labels)))
     for _ in range(iterations):
-        print("Iteration: {}".format(_))
+        logging.info("Iteration: {}".format(_))
         # Stratified sampling within each neighborhood for each label
         all_weights = []
         all_indices = []
@@ -382,7 +383,7 @@ def V0_3_empirical_bayes_balanced_stratified_KNN_sampling(
                 indices, size=sample_size, replace=replace, p=specific_weights
             )
         except:
-            print(
+            logging.info(
                 "Warning -- sampling for {} without replacement failed, defaulting to taking all cells in this category".format(
                     label
                 )
@@ -448,7 +449,7 @@ def update_connectivity_matrix_in_chunks_v0_1_0(
     Returns:
     An updated connectivity matrix.
     """
-    print("Updating connectivity matrix in chunks")
+    logging.info("Updating connectivity matrix in chunks")
     # Determine the latest epoch for each vertex
     latest_updates = {}
     for epoch, (indices, KNN_hop) in updates_dict.items():
@@ -488,7 +489,7 @@ def update_connectivity_matrix_in_chunks_v0_1_0(
     Returns:
     An updated connectivity matrix.
     """
-    print("Updating connectivity matrix in chunks")
+    logging.info("Updating connectivity matrix in chunks")
 
     # Convert the main matrix to LIL format for efficient row-wise operations
     KNN_main_lil = KNN_main.tolil()
@@ -534,7 +535,7 @@ def expand_neighborhoods_chunked_v0_1_0(adata, adata_samp, param_set):
     samp_indices = np.where(adata.obs.index.isin(adata_samp.obs.index))[0]
 
     while epoch <= param_set["epoch"] and len(hop_v_indices) > 0:
-        print(f"Epoch: {epoch}")
+        logging.info(f"Epoch: {epoch}")
 
         # Extract submatrix based on sampled data
         KNN_tmp = KNN_main[adata.obs.index.isin(adata_samp.obs.index)]
@@ -566,7 +567,7 @@ def expand_neighborhoods_chunked_v0_1_0(adata, adata_samp, param_set):
     sp_v_indices = np.where(
         results_dict["main_matrix"].sum(axis=0) <= param_set["alpha"]
     )[1]
-    print("Remaining unconnected node count is: {}".format(len(sp_v_indices)))
+    logging.info("Remaining unconnected node count is: {}".format(len(sp_v_indices)))
 
     return results_dict
 
@@ -595,7 +596,7 @@ def apply_adaptive_gaussian_kernel(
         locals().update(kwargs)
         kwargs.update(locals())
 
-    print("Applying Adaptive gaussian kernel to prune connections")
+    logging.info("Applying Adaptive gaussian kernel to prune connections")
     # Convert to COO format for easier element-wise operations
     KNN_dyn = KNN.copy()
 
@@ -650,7 +651,7 @@ def v0_2_1_update_connectivity_matrix_in_chunks(
     Returns:
     An updated connectivity matrix.
     """
-    print("Updating connectivity matrix in chunks")
+    logging.info("Updating connectivity matrix in chunks")
 
     # Convert the main matrix to LIL format for efficient row-wise operations
     KNN_main_lil = KNN_main.tolil()
@@ -658,7 +659,7 @@ def v0_2_1_update_connectivity_matrix_in_chunks(
     if n_jobs > 1:
         # Check the maximum number of available cores and adjust n_jobs if necessary
         max_cores = cpu_count()
-        print("{} compute cores available".format(max_cores))
+        logging.info("{} compute cores available".format(max_cores))
         n_jobs = min(n_jobs, max_cores)
 
         all_updates = [
@@ -668,7 +669,7 @@ def v0_2_1_update_connectivity_matrix_in_chunks(
         ]
         all_updates.sort(key=lambda x: x[0])
 
-        print("Using parallel processing with {} jobs".format(n_jobs))
+        logging.info("Using parallel processing with {} jobs".format(n_jobs))
         chunks = [
             (i, min(i + chunk_size, len(all_updates)), all_updates, KNN_main_lil)
             for i in range(0, len(all_updates), chunk_size)
@@ -677,11 +678,11 @@ def v0_2_1_update_connectivity_matrix_in_chunks(
             delayed(process_chunk)(start, end, all_updates, KNN_main_lil)
             for start, end, _, _ in chunks
         )
-        print("Jobs returned")
+        logging.info("Jobs returned")
         for chunk in processed_chunks:
             KNN_main_lil = KNN_main_lil.maximum(chunk)
     else:
-        print("Using non-parallel processing")
+        logging.info("Using non-parallel processing")
         # Process updates more efficiently
         all_updates = []
         for epoch, (indices, KNN_hop) in updates_dict.items():
@@ -702,7 +703,7 @@ def v0_2_1_update_connectivity_matrix_in_chunks(
         # Manual memory management
         gc.collect()
 
-    print("Reconstructing connectivity matrix")
+    logging.info("Reconstructing connectivity matrix")
     # Convert back to CSR format after updates
     KNN_main_updated = KNN_main_lil.tocsr()
 
@@ -760,7 +761,7 @@ def update_connectivity_matrix_in_chunks(
         locals().update(kwargs)
         kwargs.update(locals())
     version = "V0.2.2"
-    print("You are running {} module".format(version))
+    logging.info("You are running {} module".format(version))
 
     compiled_updates = {}
     for epoch, (indices, KNN_hop) in sorted(updates_dict.items(), reverse=True):
@@ -769,10 +770,10 @@ def update_connectivity_matrix_in_chunks(
                 compiled_updates[original_idx] = KNN_hop[idx, :].tocoo()
 
     if force_symmetry:
-        print("module to force symmetry active")
+        logging.info("module to force symmetry active")
 
     if n_jobs <= 1:
-        print("Non-parallel update module chosen")
+        logging.info("Non-parallel update module chosen")
         row_updates, col_updates, data_updates = [], [], []
         pbar = tqdm(total=len(compiled_updates), desc="Processing updates")
         for original_idx, update_coo in compiled_updates.items():
@@ -789,10 +790,10 @@ def update_connectivity_matrix_in_chunks(
             (data_updates, (row_updates, col_updates)), shape=KNN_main.shape
         )
     else:
-        print("Parallel update module available, proceeding")
+        logging.info("Parallel update module available, proceeding")
         max_cores = cpu_count()
         n_jobs = min(n_jobs, max_cores)
-        print(f"{max_cores} compute cores available, distributing {n_jobs} jobs")
+        logging.info(f"{max_cores} compute cores available, distributing {n_jobs} jobs")
         chunks = np.array_split(list(compiled_updates.keys()), n_jobs)
         with Pool(processes=n_jobs) as pool:
             update_results = list(
@@ -858,13 +859,13 @@ def expand_neighborhoods_chunked(
 
     if kwargs["alpha"] == 0:
         warnings.warn("Alpha value set to <1")
-        print(
+        logging.info(
             "Alpha is set to 0, this means that no expansion towards anchor states will occur, we will default this value to 1"
         )
         kwargs["alpha"] = 1
 
     while epoch <= kwargs["epoch"] and len(hop_v_indices) > 0:
-        print(f"Epoch: {epoch}")
+        logging.info(f"Epoch: {epoch}")
 
         # Extract submatrix based on sampled data
         KNN_tmp = KNN_main[adata.obs.index.isin(adata_samp.obs.index)]
@@ -888,7 +889,7 @@ def expand_neighborhoods_chunked(
         ]  # axis 1 here
         updates_dict[epoch] = (indices, KNN_hop)
 
-        print(
+        logging.info(
             "End of epoch {} Unconnected node count is: {}".format(
                 epoch, len(hop_v_indices)
             )
@@ -909,7 +910,7 @@ def expand_neighborhoods_chunked(
     sp_v_indices = np.where(results_dict["main_matrix"].sum(axis=0) < kwargs["alpha"])[
         1
     ]
-    print("Remaining unconnected node count is: {}".format(len(sp_v_indices)))
+    logging.info("Remaining unconnected node count is: {}".format(len(sp_v_indices)))
 
     return results_dict
 
@@ -943,7 +944,7 @@ def pagerank(M, num_iterations=100, d=0.85, tolerance=1e-6):
         l2_norm = np.linalg.norm(v - last_v)
         l2_dic[_] = l2_norm
         if l2_norm < tolerance:
-            print("Converged at iteration {}".format(_))
+            logging.info("Converged at iteration {}".format(_))
             break
 
     plt.figure(figsize=(10, 6))
@@ -1002,11 +1003,13 @@ def SGDpagerank_v0_1_0(
 
     # Initialize PageRank vector with random values and normalize
     if init_vect is None:
-        print("No pre-rank vector provided, proceeding with randomised intialisation")
+        logging.info(
+            "No pre-rank vector provided, proceeding with randomised intialisation"
+        )
         v = np.random.rand(N, 1)
         v = v / np.linalg.norm(v, 1)
     else:
-        print("Pre-initialised vector provided")
+        logging.info("Pre-initialised vector provided")
         v = init_vect
 
     # Initialize last PageRank vector to infinity for convergence checks
@@ -1087,7 +1090,7 @@ def SGDpagerank_v0_1_0(
 
         # Check for convergence
         if l2_norm < tolerance:
-            print("Converged at iteration {}".format(iter_))
+            logging.info("Converged at iteration {}".format(iter_))
             break
 
         # Early stopping based on smoothed L2 norms
@@ -1110,17 +1113,17 @@ def SGDpagerank_v0_1_0(
 
             # If the gradient has been stable for a number of iterations, stop early
             if plateau_count >= plateau_iterations:
-                print(
+                logging.info(
                     f"Early stopping at iteration {iter_} due to plateau in L2 norm changes."
                 )
                 break
 
     # If the algorithm hasn't converged in the given number of iterations, display a message
     if iter_ == num_iterations - 1:
-        print("pagerank model did not converge during the mini-batch phase")
+        logging.info("pagerank model did not converge during the mini-batch phase")
 
     # Refine the PageRank values using full-batch updates
-    print("Proceeding on to perform fine-tuning across full-batch")
+    logging.info("Proceeding on to perform fine-tuning across full-batch")
     for _ in range(full_batch_update_iters):
         last_v_global = v.copy()
         v = d * (M @ v) + ((1 - d) / N)
@@ -1170,17 +1173,17 @@ def SGDpagerank_v0_1_0(
     plt.show()
 
     if sampling_method == "probability_based":
-        print(
+        logging.info(
             "You should observe one dip in the graph, the first post initialisation and a continual trend downwards as the model learns more structure in your data"
         )
-        print(
+        logging.info(
             "Erratic behavious post this initial dip should trend downwards. This shows that as the model visits more nodes, we see gradual model improvement"
         )
     elif sampling_method == "cyclic":
-        print(
+        logging.info(
             "You should observe two dips in the graph, the first post initialisation and the second when the model starts to learn some structure and making informed updates"
         )
-        print(
+        logging.info(
             "Erratic behavious post this second dip should trend downwards. This shows that dispite having visited all nodes and thus oscillating, we still see gradual model improvement"
         )
 
@@ -1235,11 +1238,13 @@ def SGDpagerank(
 
     # Initialize PageRank vector with random values and normalize
     if init_vect is None:
-        print("No pre-rank vector provided, proceeding with randomised intialisation")
+        logging.info(
+            "No pre-rank vector provided, proceeding with randomised intialisation"
+        )
         v = np.random.rand(N, 1)
         v = v / np.linalg.norm(v, 1)
     else:
-        print("Pre-initialised vector provided")
+        logging.info("Pre-initialised vector provided")
         v = init_vect
 
     # Initialize last PageRank vector to infinity for convergence checks
@@ -1263,7 +1268,7 @@ def SGDpagerank(
     ignore_rate_iter = (
         ignore_rate_iter if ignore_rate_iter is not None else num_iterations // 10
     )
-    print("ignore_rate_iter has defaulted to {}".format(ignore_rate_iter))
+    logging.info("ignore_rate_iter has defaulted to {}".format(ignore_rate_iter))
 
     for iter_ in range(num_iterations):
         # add a parameter to ignore learn rate for first n iters
@@ -1340,7 +1345,7 @@ def SGDpagerank(
 
         # Check for convergence
         if l2_norm < tolerance:
-            print("Converged at iteration {}".format(iter_))
+            logging.info("Converged at iteration {}".format(iter_))
             break
 
         # Early stopping based on smoothed L2 norms
@@ -1363,17 +1368,17 @@ def SGDpagerank(
 
             # If the gradient has been stable for a number of iterations, stop early
             if plateau_count >= plateau_iterations:
-                print(
+                logging.info(
                     f"Early stopping at iteration {iter_} due to plateau in L2 norm changes."
                 )
                 break
 
     # If the algorithm hasn't converged in the given number of iterations, display a message
     if iter_ == num_iterations - 1:
-        print("pagerank model did not converge during the mini-batch phase")
+        logging.info("pagerank model did not converge during the mini-batch phase")
 
     # Refine the PageRank values using full-batch updates
-    print("Proceeding on to perform fine-tuning across full-batch")
+    logging.info("Proceeding on to perform fine-tuning across full-batch")
     for _ in range(full_batch_update_iters):
         last_v_global = v.copy()
         v = d * (M @ v) + ((1 - d) / N)
@@ -1423,17 +1428,17 @@ def SGDpagerank(
     plt.show()
 
     if sampling_method == "probability_based":
-        print(
+        logging.info(
             "You should observe one dip in the graph, the first post initialisation and a continual trend downwards as the model learns more structure in your data"
         )
-        print(
+        logging.info(
             "Erratic behavious post this initial dip should trend downwards. This shows that as the model visits more nodes, we see gradual model improvement"
         )
     elif sampling_method == "cyclic":
-        print(
+        logging.info(
             "You should observe two dips in the graph, the first post initialisation and the second when the model starts to learn some structure and making informed updates"
         )
-        print(
+        logging.info(
             "Erratic behavious post this second dip should trend downwards. This shows that dispite having visited all nodes and thus oscillating, we still see gradual model improvement"
         )
 
@@ -1461,17 +1466,17 @@ def empirical_bayes_balanced_stratified_KNN_sampling(
             globals()[key] = value
         kwargs.update(locals())
     if equal_allocation:
-        print(
+        logging.info(
             "You are using an equal allocation mode of sampling, be warned that this can cause errors if the smaller populations are insufficient in number, consider replace == True"
         )
 
     if replace == True:
-        print(
+        logging.info(
             "You are using sampling with replacement, this allows the model to create clones of cells"
         )
 
     if representation_priority > 0.8:
-        print(
+        logging.info(
             "warning: you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states"
         )
         warnings.warn(
@@ -1510,7 +1515,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(
     sample_size_per_label = total_sample_size // len(unique_labels)
 
     if weight_penalty == "entropy_distance":
-        print(
+        logging.info(
             "Using distance-entropy penalisation weights, this module is multi-threaded and quite compute intensive. If facing issues, use connectivity_ratio instead"
         )
         # Calculate entropy for each neighborhood in advance
@@ -1532,7 +1537,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(
             )
 
     elif weight_penalty == "laplacian":  # This is essentially an attention score
-        print(
+        logging.info(
             "Using Laplacian penalty term, this is similar in concept to an attention score in GANs"
         )
         # This is essentially the calculation of the Laplacian of the graph.
@@ -1552,7 +1557,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(
     elif (
         weight_penalty == "laplacian_SGD_pagerank"
     ):  # This is essentially an attention score
-        print(
+        logging.info(
             "Using Laplacian-SGD-Pagerank penalty term, this is similar in concept to an attention score in GANs but incorperates stochastic gradient descent version of pagerank"
         )
         # This is essentially the calculation of the Laplacian of the graph.
@@ -1580,7 +1585,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(
     neighborhood_entropies_iter = {label: [] for label in range(len(unique_labels))}
     sampling_probabilities_over_iterations = np.zeros((iterations, len(unique_labels)))
     for _ in range(iterations):
-        print("Iteration: {}".format(_))
+        logging.info("Iteration: {}".format(_))
         # Stratified sampling within each neighborhood for each label
         all_weights = []
         all_indices = []
@@ -1813,7 +1818,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(
 
         if resample_clones == True:
             #         sample_indices = np.random.choice(indices, size=sample_size, replace=replace, p=specific_weights)
-            #         print('prior Non-Clone proportion == {}'.format( (len(list(set(sample_indices)))/len(sample_indices))))
+            #         logging.info('prior Non-Clone proportion == {}'.format( (len(list(set(sample_indices)))/len(sample_indices))))
             sample_indices_n_dic = {}
             for _niter in range(0, 50):
                 try:
@@ -1821,7 +1826,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(
                         indices, size=sample_size, replace=replace, p=specific_weights
                     )
                 except:
-                    print(
+                    logging.info(
                         "Warning -- sampling for {} without replacement failed, defaulting to taking all cells in this category".format(
                             label
                         )
@@ -1849,7 +1854,7 @@ def empirical_bayes_balanced_stratified_KNN_sampling(
                 indices, size=sample_size, replace=True, p=new_weights
             )
             # The result is a new sample where the frequently appearing indices in the initial samples have a lower chance of appearing
-        #         print('resampled Non-Clone proportion == {}'.format( (len(list(set(sample_indices)))/len(sample_indices))))
+        #         logging.info('resampled Non-Clone proportion == {}'.format( (len(list(set(sample_indices)))/len(sample_indices))))
         else:
             sampled_indices = np.random.choice(
                 indices, size=sample_size, replace=replace, p=specific_weights
@@ -1944,10 +1949,10 @@ def Attention_based_KNN_sampling(
             globals()[key] = value
         kwargs.update(locals())
 
-    print("Non-stratified sampling based on attention weights chosen")
+    logging.info("Non-stratified sampling based on attention weights chosen")
 
     if representation_priority > 0.8:
-        print(
+        logging.info(
             "warning: you have set a very high prioritisation factor, this will heavily bias the sampling of under-represented states"
         )
         warnings.warn(
@@ -1966,7 +1971,7 @@ def Attention_based_KNN_sampling(
     if (
         weight_penalty == "laplacian_SGD_pagerank"
     ):  # This is essentially an attention score
-        print(
+        logging.info(
             "Using Laplacian-SGD-Pagerank penalty term, this is similar in concept to an attention score in GANs but incorperates stochastic gradient descent version of pagerank"
         )
         # This is essentially the calculation of the Laplacian of the graph.
@@ -1990,7 +1995,7 @@ def Attention_based_KNN_sampling(
             csr_matrix, **kwargs
         )  # num_iterations=1000,sampling_method='probability_based', mini_batch_size=1000, initial_learning_rate=0.85, tolerance=1e-6, d=0.85, full_batch_update_iters=100,
 
-    print("proceeding to 2 stage sampling using attention scores as priors")
+    logging.info("proceeding to 2 stage sampling using attention scores as priors")
     v = attention_scores.copy()
     attention_scores = attention_scores * (1 * 10**6)
     alpha = 1  # Dev note setting to higher avoids some issues due to very small numbers
@@ -2040,7 +2045,7 @@ def Attention_based_KNN_sampling(
     )
 
     adata_samp = adata[sampled_indices_from_output]
-    print("Sampling complete!")
+    logging.info("Sampling complete!")
     weights_out = {}
     weights_out["all_weights"] = attention_scores
     weights_out["v"] = v

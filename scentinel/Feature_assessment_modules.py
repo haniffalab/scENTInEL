@@ -20,6 +20,7 @@
 # libraries
 
 import itertools
+import logging
 import math
 import warnings
 
@@ -122,7 +123,7 @@ class estimate_important_features:  # This calculates feature effect sizes of th
         Returns:
 
         """
-        print("Estimating feature importance")
+        logging.info("Estimating feature importance")
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             # get feature names
@@ -132,12 +133,12 @@ class estimate_important_features:  # This calculates feature effect sizes of th
                 warnings.warn(
                     "no features recorded in data, naming features by position"
                 )
-                print(
+                logging.info(
                     "if low-dim lr was submitted, run linear decoding function to obtain true feature set"
                 )
                 model_features = list(range(0, model.coef_.shape[1]))
                 model.features = model_features
-            print("Calculating the Euler number to the power of coefficients")
+            logging.info("Calculating the Euler number to the power of coefficients")
             impt_ = pow(math.e, model.coef_)
             try:
                 self.euler_pow_mat = pd.DataFrame(
@@ -152,11 +153,11 @@ class estimate_important_features:  # This calculates feature effect sizes of th
             self.top_n_features = pd.DataFrame(index=list(range(0, top_n)))
             # estimate per class feature importance
 
-            print("Estimating feature importance for each class")
+            logging.info("Estimating feature importance for each class")
             mat = self.euler_pow_mat
             for class_pred_pos in list(range(0, len(mat.T.columns))):
                 class_pred = list(mat.T.columns)[class_pred_pos]
-                #     print(class_pred)
+                #     logging.info(class_pred)
                 temp_mat = pd.DataFrame(mat.T[class_pred])
                 temp_mat["coef"] = model.coef_[class_pred_pos]
                 temp_mat = temp_mat.sort_values(by=[class_pred], ascending=False)
@@ -226,7 +227,7 @@ def model_class_feature_plots(top_loadings, classes, comps, p_lim, max_len, titl
         plt.title(title + "_" + class_temp)
         # plt.axvline(x=med,color='pinkp_lim
         df_loadings[comps][df_loadings[str(p_lim) + "_pval"] < 0.05]
-        print(len(df_loadings[comps][df_loadings[str(p_lim) + "_pval"] < 0.05]))
+        logging.info(len(df_loadings[comps][df_loadings[str(p_lim) + "_pval"] < 0.05]))
         # Plot feature ranking
         if (
             len(

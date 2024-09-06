@@ -24,6 +24,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import logging
 from collections import namedtuple
 
 import numpy as np
@@ -53,7 +54,7 @@ def __load_gpu_module(force_cpu: bool):
 
             xp = cp
         except ImportError:
-            print("cupy not found, defaulting to numpy")
+            logging.info("cupy not found, defaulting to numpy")
 
     return xp
 
@@ -92,10 +93,10 @@ def __get_progress_bar(total=-1, disable=False):
                 if len(print_str) < 80:
                     print_str = print_str + " " * (80 - len(print_str))
 
-                print(print_str, end="\r", flush=True)
+                logging.info(print_str, end="\r", flush=True)
 
             if self.t == self.total:
-                print("")
+                logging.info("")
 
     try:
         from tqdm import tqdm
@@ -451,6 +452,6 @@ if __name__ == "__main__":
 
         D_test2 = bless(X_test, RBF(length_scale=10), 10, 10, r, 10, force_cpu=False)
     except ImportError:
-        print("cupy not found, defaulting to numpy")
+        logging.info("cupy not found, defaulting to numpy")
 
     pass

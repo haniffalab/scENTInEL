@@ -19,6 +19,8 @@
 #    - Run in projection mode
 # libraries
 
+import logging
+
 import gseapy as gp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -250,10 +252,10 @@ def custom_local_GO_enrichment(
 
     # Check if GMT input is a dictionary or long-format input
     if isinstance(input_gmt, dict):
-        print("input gmt is a dictionary, proceeding")
+        logging.info("input gmt is a dictionary, proceeding")
         dic = input_gmt
     else:
-        print(
+        logging.info(
             "input gmt is not a dictionary, if is pandas df,please ensure it is long-format proceeding to convert to dictionary"
         )
         dic = (
@@ -331,9 +333,9 @@ def permutation_ranked_enr(
     """
     input_DE = input_DE[input_DE[input_DE_clust_col].isin([cluster_1, cluster_2])]
     # Make set2 negative values to represent opposing condition
-    input_DE[input_ranking_col].loc[input_DE[input_DE_clust_col].isin([cluster_2])] = (
-        -input_DE[input_ranking_col].loc[input_DE[input_DE_clust_col].isin([cluster_2])]
-    )
+    input_DE[input_ranking_col].loc[
+        input_DE[input_DE_clust_col].isin([cluster_2])
+    ] = -input_DE[input_ranking_col].loc[input_DE[input_DE_clust_col].isin([cluster_2])]
     enr_perm = pre_ranked_enr(
         input_DE,
         [input_gene_col, input_ranking_col],
@@ -567,10 +569,10 @@ def analyze_and_plot_feat_gsea(
         )
 
     # Print the enrichment score range
-    print(
+    logging.info(
         "Normalised enrichment score ranges, for continuous phenotype tests, a positive value indicates correlation with phenotype profile or top of the ranked list, negative values indicate inverse correlation with profile or correlation with the bottom of the list"
     )
-    print(enr.res2d.shape)
+    logging.info(enr.res2d.shape)
     # Plot the enrichment results
     terms = enr.res2d.Term
     axs = enr.plot(
@@ -790,7 +792,7 @@ def plot_sampling_metrics(adata, adata_samp, feat_use, knn_key, weights=None, **
 
 
 #     # Weight Distribution of Sampled Points:
-#     print("Weight Distribution of Sampled Points vs Original Data: This histogram compares the weight distribution of your original dataset to your sampled dataset. Weights here represent the sum of connection strengths (weights) of nearest neighbors in the k-nearest neighbors graph. If the sampling strategy is working as intended, you should see that the sampled data's weight distribution is similar to the original data, indicating that the sampling has preserved the relative density of points in the feature space. Large deviations might suggest that the sampling is not preserving the structure of the data well.")
+#     logging.info("Weight Distribution of Sampled Points vs Original Data: This histogram compares the weight distribution of your original dataset to your sampled dataset. Weights here represent the sum of connection strengths (weights) of nearest neighbors in the k-nearest neighbors graph. If the sampling strategy is working as intended, you should see that the sampled data's weight distribution is similar to the original data, indicating that the sampling has preserved the relative density of points in the feature space. Large deviations might suggest that the sampling is not preserving the structure of the data well.")
 #     plt.figure(figsize=(10, 6))
 #     sns.histplot(adata_sampling_probabilities, color='blue', label='Original Data', kde=True)
 #     sns.histplot(adata_samp_sampling_probabilities, color='red', label='Sampled Data', kde=True)
@@ -801,7 +803,7 @@ def plot_sampling_metrics(adata, adata_samp, feat_use, knn_key, weights=None, **
 #     plt.show()
 
 #     # Sampling Probability and Weight Relationship:
-#     print("Sampling Probability vs Weights of Nearest Neighbors: This scatter plot shows the relationship between the weights of nearest neighbors and the sampling probability for each point. Since the sampling probability is proportional to the weight (sum of connection strengths), you expect to see a positive correlation. The sampled data (marked in different color) should follow the same trend as the original data, suggesting that the sampling has preserved the relative importance of points based on their connection strengths.")
+#     logging.info("Sampling Probability vs Weights of Nearest Neighbors: This scatter plot shows the relationship between the weights of nearest neighbors and the sampling probability for each point. Since the sampling probability is proportional to the weight (sum of connection strengths), you expect to see a positive correlation. The sampled data (marked in different color) should follow the same trend as the original data, suggesting that the sampling has preserved the relative importance of points based on their connection strengths.")
 #     plt.figure(figsize=(10, 6))
 #     plt.scatter(adata_weights, adata_sampling_probabilities, label='Original Data', alpha=0.5)
 #     plt.scatter(adata_samp_weights, adata_samp_sampling_probabilities, label='Sampled Data', alpha=0.5)

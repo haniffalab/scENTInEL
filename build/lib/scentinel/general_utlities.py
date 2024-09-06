@@ -20,6 +20,7 @@
 # libraries
 
 import gc
+import logging
 import os
 import threading
 import tracemalloc
@@ -59,7 +60,7 @@ class DisplayCPU(threading.Thread):
         while self.running:
             peak_cpu = 0
             #           time.sleep(3)
-            #             print('CPU % usage = '+''+ str(currentProcess.cpu_percent(interval=1)))
+            #             logging.info('CPU % usage = '+''+ str(currentProcess.cpu_percent(interval=1)))
             #             cpu_pct.append(str(currentProcess.cpu_percent(interval=1)))
             cpu = currentProcess.cpu_percent()
             # track the peak utilization of the process
@@ -97,7 +98,7 @@ def freq_redist_68CI(pred_out, clusters_reassign):
     """
     freq_redist = clusters_reassign
     if freq_redist != False:
-        print("Frequency redistribution commencing")
+        logging.info("Frequency redistribution commencing")
         cluster_prediction = "consensus_clus_prediction"
         lr_predicted_col = "predicted"
         #         pred_out[clusters_reassign] = adata.obs[clusters_reassign].astype(str)
@@ -118,7 +119,7 @@ def freq_redist_68CI(pred_out, clusters_reassign):
                 ]
                 if len(df_count_temp >= 1):
                     df_count = df_count_temp
-            # print(df_count)
+            # logging.info(df_count)
             freq_arranged = df_count.index
             cat = freq_arranged[0]
             # Make the cluster assignment first
@@ -126,7 +127,7 @@ def freq_redist_68CI(pred_out, clusters_reassign):
             pred_out.loc[pred_out[clusters_reassign] == z, [cluster_prediction]] = cat
             # Create assignments for any classification >68CI
             for cats in freq_arranged:
-                # print(cats)
+                # logging.info(cats)
                 cats_assignment = cats  # .replace(data1,'') + '_clus_prediction'
                 pred_out.loc[
                     (pred_out[clusters_reassign] == z)
@@ -197,7 +198,7 @@ def report_f1(model, train_x, train_label):
     table.set_fontsize(10)
 
     sns.heatmap(df_cm, annot=True, annot_kws={"size": 16}, cmap=pal)  # font size
-    print(classification_report(train_label, predicted_labels, digits=2))
+    logging.info(classification_report(train_label, predicted_labels, digits=2))
 
 
 # Generate psuedocells
@@ -297,14 +298,14 @@ def aggregate_data_v0_1_0(
     is_backed = adata.isbacked
     if not is_backed and len(adata) < 1000000:
         # Use the regular approach if not in backed mode
-        print("Data is small enough to proceed with direct dot products")
+        logging.info("Data is small enough to proceed with direct dot products")
         return aggregate_data_single_load(
             adata, adata_samp, connectivity_matrix, method
         )
     if adata_samp.isbacked:
         adata_samp = adata_samp.to_memory()
 
-    print("Data is too large to process in a single view, processing in chunks ")
+    logging.info("Data is too large to process in a single view, processing in chunks ")
     # Determine the number of chunks to process
     n_samples = adata_samp.shape[0]
     n_chunks = (n_samples + chunk_size - 1) // chunk_size  # Ceiling division
@@ -337,9 +338,9 @@ def aggregate_data_v0_1_0(
         expression_matrix_chunk = adata[neighbor_indices].to_memory().X
 
         # Store original counts in dataframe
-        orig_obs_counts.loc[adata[neighbor_indices].obs.index, "n_counts"] = (
-            expression_matrix_chunk.sum(axis=1).A1
-        )
+        orig_obs_counts.loc[
+            adata[neighbor_indices].obs.index, "n_counts"
+        ] = expression_matrix_chunk.sum(axis=1).A1
 
         # Calculate scaling factors based on the specified method
         if method == "local":
@@ -413,14 +414,14 @@ def aggregate_data(
     is_backed = adata.isbacked
     if not is_backed and len(adata) < 1000000:
         # Use the regular approach if not in backed mode
-        print("Data is small enough to proceed with direct dot products")
+        logging.info("Data is small enough to proceed with direct dot products")
         return aggregate_data_single_load(
             adata, adata_samp, connectivity_matrix, method, **kwargs
         )
     if adata_samp.isbacked:
         adata_samp = adata_samp.to_memory()
 
-    print(
+    logging.info(
         "Data is too large to process in a single view or in backed mode, processing in chunks "
     )
     # Determine the number of chunks to process
@@ -708,14 +709,14 @@ def update_label_anchors_by_lower_threshold(
 
     # Check if there are any labels to process
     if not recovery_labels:
-        print(
+        logging.info(
             "No labels below the minimum cell recovery threshold. Resulting adata_samp has not changed."
         )
         return adata_samp
 
     else:
         l = len(recovery_labels)
-        print(
+        logging.info(
             f"{l} labels below the minimum cell recovery threshold. Recovering these labels based off attention score to return up to {threshold_cell_number} cells per label."
         )
 
@@ -747,5 +748,5 @@ def update_label_anchors_by_lower_threshold(
         indexes = list(adata_samp.obs.index) + indexes
         adata_samp = adata[adata.obs.index.isin(indexes)]
         gc.collect()
-        print("Updated indexes for adata_samp completed")
+        logging.info("Updated indexes for adata_samp completed")
         return adata_samp

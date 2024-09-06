@@ -19,6 +19,7 @@
 #    - Run in projection mode
 # libraries
 
+import logging
 import random
 
 import matplotlib.pyplot as plt
@@ -58,22 +59,22 @@ def reference_projection(
 
     from sklearn.preprocessing import StandardScaler
 
-    print("Determining model flavour")
+    logging.info("Determining model flavour")
     try:
         model_lr = model["Model"]
-        print("Consuming celltypist model")
+        logging.info("Consuming celltypist model")
     except:  # hasattr(model, 'coef_'):
-        print("Consuming non-celltypist model")
+        logging.info("Consuming non-celltypist model")
         model_lr = model
-    print(model_lr)
+    logging.info(model_lr)
     if train_x_partition == "X":
-        print("Matching reference genes in the model")
+        logging.info("Matching reference genes in the model")
         k_x = np.isin(list(adata.var.index), list(model_lr.features))
         if k_x.sum() == 0:
             raise ValueError(
                 f"🛑 No features overlap with the model. Please provide gene symbols"
             )
-        print(f"🧬 {k_x.sum()} features used for prediction")
+        logging.info(f"🧬 {k_x.sum()} features used for prediction")
         # slicing adata
         k_x_idx = np.where(k_x)[0]
         # adata_temp = adata[:,k_x_idx]
@@ -95,7 +96,7 @@ def reference_projection(
             model_lr.coef_[:, lr_idx]
         )  # model_lr.coef_[:, lr_idx]
         if partial_scale == True:
-            print(
+            logging.info(
                 "scaling input data, default option is to use incremental learning and fit in mini bulks!"
             )
             # Partial scaling alg
@@ -123,7 +124,7 @@ def reference_projection(
                 index += partial_size
             adata_temp.X = scaler.transform(adata_temp.X)
     # model projections
-    print("Starting reference projection!")
+    logging.info("Starting reference projection!")
     if train_x_partition == "X":
         train_x = adata_temp.X
         pred_out = pd.DataFrame(
@@ -139,7 +140,7 @@ def reference_projection(
         pred_out = pred_out.join(proba)
 
     elif train_x_partition in list(adata.obsm.keys()):
-        print("{low_dim: this partition modality is still under development!}")
+        logging.info("{low_dim: this partition modality is still under development!}")
         train_x = adata.obsm[train_x_partition]
         pred_out = pd.DataFrame(
             model_lr.predict(train_x),
@@ -154,7 +155,7 @@ def reference_projection(
         pred_out = pred_out.join(proba)
 
     else:
-        print("{this partition modality is still under development!}")
+        logging.info("{this partition modality is still under development!}")
     ## insert modules for low dim below
 
     # Simple dynamic confidence calling
@@ -204,12 +205,12 @@ def LR_train(
         for key, value in kwargs.items():
             globals()[key] = value
         kwargs.update(locals())
-        print(sparcity)
+        logging.info(sparcity)
     if tune_hyper_params == True:
         #         results = tune_lr_model(adata, train_x_partition = train_x_partition, random_state = 42, penalty=penalty, sparcity=sparcity,train_label = train_label, n_splits=n_splits, n_repeats=n_repeats,l1_grid = l1_grid, c_grid = c_grid,**kwargs)
         results = tune_lr_model(random_state=42, **kwargs)
-        print("hyper_params tuned")
-        print(results.best_params_)
+        logging.info("hyper_params tuned")
+        logging.info(results.best_params_)
         sparcity = results.best_params_["C"]
         l1_ratio = results.best_params_["l1_ratio"]
 
@@ -325,7 +326,7 @@ def tune_lr_model(
             #         import cupy
             #         lvg_2 = bless(adata.obsm[train_x_partition], RBF(length_scale=10), 10, 10, r, 10, force_cpu=False)
             #     except ImportError:
-            #         print("cupy not found, defaulting to numpy")
+            #         logging.info("cupy not found, defaulting to numpy")
             adata_tuning = adata[lvg.idx]
             tune_train_x = adata_tuning.obsm[train_x_partition][:]
         else:
@@ -333,7 +334,7 @@ def tune_lr_model(
             tune_train_x = adata_tuning.obsm[train_x_partition][:]
 
     else:
-        print("no latent representation provided, random sampling instead")
+        logging.info("no latent representation provided, random sampling instead")
         prop = 0.1
         random_vertices = []
         n_ixs = int(len(adata.obs) * prop)
@@ -345,19 +346,19 @@ def tune_lr_model(
         tune_train_label = adata_tuning.obs[train_label]
     elif train_label is None:
         try:
-            print(
+            logging.info(
                 "no training labels provided, defaulting to unsuperived leiden clustering, updates will change this to voronoi greedy sampling"
             )
             sc.tl.leiden(adata_tuning)
         except:
-            print(
+            logging.info(
                 "no training labels provided, no neighbors, defaulting to unsuperived leiden clustering, updates will change this to voronoi greedy sampling"
             )
             sc.pp.neighbors(adata_tuning, n_neighbors=15, n_pcs=50)
             sc.tl.leiden(adata_tuning)
         tune_train_label = adata_tuning.obs["leiden"]
     ## tune regularization for multinomial logistic regression
-    print("starting tuning loops")
+    logging.info("starting tuning loops")
     X = tune_train_x
     y = tune_train_label
     # model = LogisticRegression(penalty = penalty, max_iter =  200, dual=False,solver = 'saga', multi_class = 'multinomial',)
@@ -461,8 +462,8 @@ def tune_lr_model(
         # perform the search
         results = search.fit(X, y)
     # summarize
-    #     print('MAE: %.3f' % results.best_score_)
-    #     print('Config: %s' % results.best_params_)
+    #     logging.info('MAE: %.3f' % results.best_score_)
+    #     logging.info('Config: %s' % results.best_params_)
     return results
 
 
@@ -498,14 +499,14 @@ def prep_training_data(
         for key, value in kwargs.items():
             globals()[key] = value
         kwargs.update(locals())
-        print(sparcity)
+        logging.info(sparcity)
     model_name = model_key + "_lr_model"
     # scale the input data
     if partial_scale == True:
-        print(
+        logging.info(
             "scaling input data, default option is to use incremental learning and fit in mini bulks!"
         )
-        print("performing highly variable gene selection")
+        logging.info("performing highly variable gene selection")
         sc.pp.highly_variable_genes(adata_temp, batch_key=batch_key, subset=False)
         adata_temp = subset_top_hvgs(adata_temp, var_length)
         # Partial scaling alg
@@ -535,8 +536,8 @@ def prep_training_data(
     #     else:
     #         sc.pp.scale(adata_temp, zero_center=True, max_value=None, copy=False, layer=None, obsm=None)
     if (train_x_partition != "X") & (train_x_partition not in adata_temp.obsm.keys()):
-        print("train partition is not in OBSM, defaulting to PCA")
-        print("performing highly variable gene selection")
+        logging.info("train partition is not in OBSM, defaulting to PCA")
+        logging.info("performing highly variable gene selection")
         sc.pp.highly_variable_genes(adata_temp, batch_key=batch_key, subset=False)
         adata_temp = subset_top_hvgs(adata_temp, var_length)
         # Now compute PCA
@@ -548,7 +549,7 @@ def prep_training_data(
         # Batch correction options
         # The script will test later which Harmony values we should use
         if batch_correction == "Harmony":
-            print("Commencing harmony")
+            logging.info("Commencing harmony")
             adata_temp.obs["lr_batch"] = adata_temp.obs[batch_key]
             batch_var = "lr_batch"
             # Create hm subset
@@ -569,7 +570,7 @@ def prep_training_data(
             adata_temp = adata_hm[:]
             del adata_hm
         elif batch_correction == "BBKNN":
-            print("Commencing BBKNN")
+            logging.info("Commencing BBKNN")
             sc.external.pp.bbknn(
                 adata_temp,
                 batch_key=batch_var,
@@ -583,14 +584,14 @@ def prep_training_data(
                 set_op_mix_ratio=1.0,
                 local_connectivity=15,
             )
-        print(
+        logging.info(
             "adata1 and adata2 are now combined and preprocessed in 'adata' obj - success!"
         )
 
     # train model
     #    train_x = adata_temp.X
     # train_label = adata_temp.obs[feat_use]
-    print("proceeding to train model")
+    logging.info("proceeding to train model")
     #     # Explixitly extract arguments that also exist in tune_lr_model from kwargs
     #     LR_train_kwargs = {key: kwargs[key] for key in ['train_x_partition', 'random_state', 'use_bayes_opt', 'train_labels', 'n_splits', 'n_repeats', 'l1_grid', 'c_grid', 'thread_num'] if key in kwargs}
     # update all local kwargs
@@ -775,7 +776,7 @@ def compute_weights(adata, use_rep, original_labels_col, predicted_labels_col):
     means = []  # Collect all posterior means
     sds = []  # Collect all posterior standard deviations
     for label in np.unique(predicted_labels):
-        print("Sampling {} posterior distribution".format(label))
+        logging.info("Sampling {} posterior distribution".format(label))
         # Perform Bayesian inference to compute the posterior distribution of the
         # 'distance-entropy' product for this label
         orig_pos = obs_met[original_labels_col].isin([label])

@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import scipy.sparse as sp
 
@@ -65,7 +67,7 @@ def accumulate_subgraph_weights_normalized(main_matrix, adata_sub_dict, main_bar
     counts = sp.lil_matrix(main_matrix.shape, dtype=np.int32)
 
     for sub_key, sub_adata in adata_sub_dict.items():
-        print("Processing subgraph {}".format(sub_key))
+        logging.info("Processing subgraph {}".format(sub_key))
 
         # Extract barcodes for the subgraph
         sub_barcodes = list(sub_adata.obs.index)
@@ -91,7 +93,7 @@ def accumulate_subgraph_weights_normalized(main_matrix, adata_sub_dict, main_bar
         weighted_matrix = matrix.dot(density_diag)
 
         # Map the weighted matrix values to the accumulator using advanced indexing
-        print(
+        logging.info(
             "mapping the weighted matrix to the accumulator for subgraph {}".format(
                 sub_key
             )

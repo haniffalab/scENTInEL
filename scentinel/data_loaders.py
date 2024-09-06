@@ -19,6 +19,7 @@
 #    - Run in projection mode
 # libraries
 
+import logging
 import pickle as pkl
 from pathlib import Path
 
@@ -44,7 +45,7 @@ def load_models(model_dict, model_run):
         model = pkl.load(open(model_dict[model_run], "rb"))
         return model
     elif "http" in model_dict[model_run]:
-        print("Loading model from web source")
+        logging.info("Loading model from web source")
         r_get = requests.get(model_dict[model_run])
         fpath = "./model_temp.sav"
         open(fpath, "wb").write(r_get.content)
@@ -75,7 +76,7 @@ def load_adatas(
         adatas = {}
         for dataset in adatas_dict.keys():
             if "https" in adatas_dict[dataset]:
-                print("Loading anndata from web source")
+                logging.info("Loading anndata from web source")
                 adatas[dataset] = sc.read(
                     "./temp_adata.h5ad", backup_url=adatas_dict[dataset]
                 )
@@ -90,12 +91,12 @@ def load_adatas(
         return adatas, adata
     if not data_merge:
         if "https" in adatas_dict[data_key_use]:
-            print("Loading anndata from web source")
+            logging.info("Loading anndata from web source")
             adata = sc.read("./temp_adata.h5ad", backup_url=adatas_dict[data_key_use])
         else:
             adata = sc.read(adatas_dict[data_key_use], backed=backed)
     if QC_normalise == True:
-        print(
+        logging.info(
             "option to apply standardisation to data detected, performing basic QC filtering"
         )
         sc.pp.filter_cells(adata, min_genes=200)
